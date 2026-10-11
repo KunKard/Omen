@@ -160,7 +160,9 @@ namespace Omen.Bootstrap
                 _cameraRig.hideFlags = HideFlags.DontSave;
             }
 
-            _cameraRig.Configure(_grid, data.PixelsPerUnit);
+            // 缩放参数从 IslandConfig 资产传入：CameraRig 是运行时挂上去的组件（见下），
+            // 在 Inspector 里看不到它的字段，所以"能调的入口"必须留在配置资产上。
+            _cameraRig.Configure(_grid, data.PixelsPerUnit, data.CameraZoom);
         }
 
         private int ResolveSeed()

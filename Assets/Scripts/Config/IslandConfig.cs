@@ -71,9 +71,15 @@ namespace Omen.Config
         [SerializeField] private Color grassColor = new Color(0.56f, 0.75f, 0.29f);
 
         [Header("显示")]
-        [Tooltip("每单位像素数。1 格 = 1 世界单位，所以它也是\"一格占几个屏幕像素\"。像素风基准值，全项目美术资源都按它切图。")]
+        [Tooltip("美术采图标准：一格按多少像素绘制。长期契约，改动会影响以后所有美术资源，尽量不要动。")]
         [Range(1, 128)]
         [SerializeField] private int pixelsPerUnit = 16;
+
+        [Tooltip("相机放大倍数（整数）。屏幕上 1 格 = PixelsPerUnit × 本值 个像素。\n" +
+                 "1 = 原始大小（1080p 下岛约占屏幕高度 24%）；2 = 推荐；3 = 约 71%；4 = 约 95%（贴边）。\n" +
+                 "必须是整数，否则相邻像素大小不一会出现条纹。屏幕装不下时会自动降档。")]
+        [Range(1, 8)]
+        [SerializeField] private int cameraZoom = 2;
 
         public int Width { get { return width; } }
 
@@ -102,6 +108,7 @@ namespace Omen.Config
                 LandColor = ToRgb24(landColor),
                 GrassColor = ToRgb24(grassColor),
                 PixelsPerUnit = pixelsPerUnit,
+                CameraZoom = cameraZoom,
             };
 
             data.Sanitize();

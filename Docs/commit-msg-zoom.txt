@@ -1,0 +1,23 @@
+Camera zoom: 拆成 PixelsPerUnit(美术标准) x CameraZoom(整数放大倍数)
+
+问题：像素完美模式下岛只占屏幕高度约 24%，太小。用户要求能调大放大倍数。
+
+方案（Decision Log D8）：
+- PixelsPerUnit 固定为美术采图标准（16），长期不动
+- 新增 CameraZoom 整数放大倍数，默认 2（1080p 下岛占屏幕高度约 47%）
+- 实际每单位像素数 = PixelsPerUnit x CameraZoom
+
+为什么必须是整数倍：非整数倍时相邻美术像素会占 1 个或 2 个屏幕像素，
+画面出现间隔条纹。整数倍则每个像素放大倍数一致。
+
+为什么参数放在 IslandConfig 而不是 CameraRig 的 Inspector 字段：
+CameraRig 与 GridView 都由 GameBootstrap 在运行时挂载（不写回场景），
+Inspector 里看不到它们的字段。把缩放值经由 IslandConfig 传入，
+用户才有稳定的调参入口。
+
+屏幕装不下时自动降档，不会裁掉岛屿。
+
+另：岛屿尺寸保持 16x16 不随难度变化（D9）。用户决定"岛做大"留给高难度，
+已在 Docs/Design.md 7.1 记录实现要点（含相机 Zoom 需要按尺寸重算的连带影响）。
+
+验证：Core 层 40 项检查全部通过；16 个源文件编译 0 错误。

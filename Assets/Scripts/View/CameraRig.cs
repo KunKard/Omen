@@ -8,11 +8,16 @@ namespace Omen.View
     ///
     /// 为什么要自己算像素对齐：本项目<b>没有安装</b> com.unity.2d.pixel-perfect 包
     /// （见 Decision Log D3），而像素风一旦出现非整数倍缩放，方块边缘就会糊掉。
-    /// 对齐只需两件事：
-    ///   1) <c>orthographicSize = 屏幕像素高 / (2 × PPU)</c>，让 1 个世界单位正好等于 PPU 个屏幕像素
-    ///   2) 相机位置取整到"一个屏幕像素对应的世界尺寸"的整数倍，避免半像素抖动
-    /// 如果屏幕尺寸导致 1 单位对不齐整数像素（例如 1080 / 9 = 120 可以，但某些分辨率不行），
-    /// 就把 PPU 向下取到能整除的最大整数，宁可画面略小也不要糊。
+    /// 对齐需要三件事：
+    ///   1) <c>orthographicSize = 屏幕像素高 / (2 × 每单位像素数)</c>，
+    ///      让 1 个美术像素正好落在整数个屏幕像素上
+    ///   2) <b>放大倍数取整数</b>（<see cref="zoom"/>），否则相邻像素会占 1 个或 2 个屏幕像素，
+    ///      出现"像素大小不一"的条纹
+    ///   3) 相机位置取整到一个屏幕像素对应的世界尺寸的整数倍，避免半像素抖动
+    ///
+    /// 每单位像素数 = <see cref="targetPixelsPerUnit"/>（美术采图标准，长期不动）
+    ///              × <see cref="zoom"/>（放大倍数，可以随时调）。
+    /// 屏幕太小导致整数倍放大装不下时，会自动降档（2 → 1），不会裁掉岛屿。
     /// </summary>
     [DisallowMultipleComponent]
     [RequireComponent(typeof(Camera))]
@@ -34,19 +39,25 @@ namespace Omen.View
         [SerializeField] private float padding = 0.06f;
 
         [Header("像素对齐")]
-        [Tooltip("期望的每单位像素数（像素风基准）。")]
+        [Tooltip("美术采图标准：一格按多少像素绘制。这个值是长期契约，改动会影响以后所有美术资源，尽量不要动。")]
         [Min(1)]
         [SerializeField] private int targetPixelsPerUnit = 16;
 
-        [Tooltip("是否强制 1 个世界单位 = 整数个屏幕像素。像素风建议保持开启。")]
+        [Tooltip("放大倍数（整数）。屏幕上 1 格 = PixelsPerUnit × Zoom 个像素。\n" +
+                 "1 = 原始大小；2 = 放大一倍（1080p 下岛约铺满屏幕高度）；3 及以上会超出屏幕。\n" +
+                 "必须是整数：非整数倍放大时相邻像素会占 1 个或 2 个屏幕像素，像素大小不一会很显眼。")]
+        [Range(1, 8)]
+        [SerializeField] private int zoom = 2;
+
+        [Tooltip("是否强制 1 个美术像素 = 整数个屏幕像素。像素风建议保持开启。")]
         [SerializeField] private bool snapToIntegerPixels = true;
 
         [Tooltip("是否把相机位置对齐到整像素。")]
         [SerializeField] private bool snapCameraPosition = true;
 
-        [Tooltip("是否把放大倍数限制在 PixelsPerUnit 以内。\n" +
-                 "开启：1 格 = 恰好 PixelsPerUnit 个屏幕像素（像素绝对精确，但在 1080p 下岛只占屏幕高度约一半）。\n" +
-                 "关闭：岛尽量铺满屏幕（更醒目），缩放倍数可能不是整数，边缘会有极轻微插值。")]
+        [Tooltip("是否把放大倍数限制在 PixelsPerUnit × Zoom 以内。\n" +
+                 "开启：严格像素完美（推荐）。\n" +
+                 "关闭：岛尽量铺满屏幕，但缩放倍数可能非整数，边缘会有极轻微插值。")]
         [SerializeField] private bool limitZoomToPixelsPerUnit = true;
 
         private Camera _camera;
@@ -54,11 +65,29 @@ namespace Omen.View
         private int _lastScreenHeight;
         private bool _configured;
 
-        /// <summary>当前实际生效的每单位像素数（可能因整数对齐而小于配置值）。</summary>
+        /// <summary>当前实际生效的每单位像素数（可能因屏幕太小而低于 PixelsPerUnit × Zoom）。</summary>
         public float EffectivePixelsPerUnit { get; private set; }
 
-        /// <summary>由 <c>GameBootstrap</c> 在装配时调用，把网格尺寸告诉相机。</summary>
-        public void Configure(IslandGrid grid, int pixelsPerUnit)
+        /// <summary>当前配置的放大倍数。实际生效值可能因屏幕限制而降档。</summary>
+        public int Zoom
+        {
+            get { return zoom; }
+        }
+
+        /// <summary>运行时改放大倍数（例如镜头推拉，或让难度影响视野）。</summary>
+        public void SetZoom(int newZoom)
+        {
+            zoom = Mathf.Clamp(newZoom, 1, 8);
+            Apply();
+        }
+
+        /// <summary>
+        /// 由 <c>GameBootstrap</c> 在装配时调用，把网格尺寸与缩放参数告诉相机。
+        /// </summary>
+        /// <param name="grid">要框住的网格，用于推导世界尺寸与中心。</param>
+        /// <param name="pixelsPerUnit">美术采图标准；&lt;= 0 表示保持当前值。</param>
+        /// <param name="zoom">放大倍数（整数）；&lt;= 0 表示保持当前值。</param>
+        public void Configure(IslandGrid grid, int pixelsPerUnit, int zoom)
         {
             if (grid != null)
             {
@@ -71,6 +100,11 @@ namespace Omen.View
             if (pixelsPerUnit > 0)
             {
                 targetPixelsPerUnit = pixelsPerUnit;
+            }
+
+            if (zoom > 0)
+            {
+                this.zoom = Mathf.Clamp(zoom, 1, 8);
             }
 
             _configured = true;
@@ -118,7 +152,10 @@ namespace Omen.View
 
             float screenHeight = Mathf.Max(1f, Screen.height);
             float screenWidth = Mathf.Max(1f, Screen.width);
-            float configuredPpu = Mathf.Max(1f, targetPixelsPerUnit);
+
+            // 目标每单位像素数 = 美术采图标准 × 放大倍数。
+            // 放大倍数保持整数，是"像素完美"的前提：非整数倍时相邻像素会占 1 或 2 个屏幕像素。
+            float configuredPpu = Mathf.Max(1f, targetPixelsPerUnit * Mathf.Max(1, zoom));
 
             // 相机最多能放大到多少 PPU 还能同时装下宽和高：
             //   高度限制 = 屏幕像素高 / 需要容纳的世界高度

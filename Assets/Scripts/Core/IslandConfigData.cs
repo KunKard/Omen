@@ -75,10 +75,17 @@ namespace Omen.Core
 
         // ---------------------------------------------------------------- 显示
         /// <summary>
-        /// 每单位像素数（像素风基准）。1 个格子 = 1 世界单位，所以它同时是"一格占几个屏幕像素"。
+        /// 美术采图标准：一格按多少像素绘制。1 个格子 = 1 世界单位，所以它也是"美术上一格画多大"。
         /// 所有美术资源都按这个值切图，因此它是全项目最不该随意改的参数之一。
         /// </summary>
         public int PixelsPerUnit = 16;
+
+        /// <summary>
+        /// 相机放大倍数（<b>整数</b>）。屏幕上 1 格 = PixelsPerUnit × CameraZoom 个像素。
+        /// 必须整数：非整数倍时相邻像素会占 1 个或 2 个屏幕像素，出现间隔条纹。
+        /// 与 PixelsPerUnit 分开是有意的 —— 改画面缩放不应该污染美术采图标准。
+        /// </summary>
+        public int CameraZoom = 2;
 
         /// <summary>复制一份，避免调用方后续修改影响到已经传给生成器的数据。</summary>
         public IslandConfigData Clone()
@@ -100,6 +107,7 @@ namespace Omen.Core
                 LandColor = LandColor,
                 GrassColor = GrassColor,
                 PixelsPerUnit = PixelsPerUnit,
+                CameraZoom = CameraZoom,
             };
         }
 
