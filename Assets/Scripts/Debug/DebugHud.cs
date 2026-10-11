@@ -168,8 +168,7 @@ namespace Omen.Debugging
             _builder.Append("草地 ").Append(grid.GrassCount)
                 .Append("   地面生物 ").Append(grid.CountOccupiedCells())
                 .Append("   Seed ").Append(gameBootstrap.Seed)
-                .AppendLine();
-        }
+                .AppendLine();        }
 
         private void AppendCamera()
         {
@@ -195,8 +194,36 @@ namespace Omen.Debugging
 
         private void AppendSpecies()
         {
-            // Phase 2 接入物种后，这里换成真实的兔 / 狼 / 草统计。
-            _builder.Append("物种   兔 --   狼 --   （Phase 2 接入）").AppendLine();
+            EcosystemSimulation sim = gameBootstrap != null ? gameBootstrap.Simulation : null;
+            if (sim == null)
+            {
+                _builder.Append("生态 未接入").AppendLine();
+                return;
+            }
+
+            EcosystemStats stats = sim.Stats;
+
+            _builder.Append("兔 ").Append(stats.RabbitCount)
+                .Append("   狼 ").Append(stats.WolfCount)
+                .Append("   草 ").Append(stats.GrassCells).Append('/').Append(stats.LandCells)
+                .Append(" (").Append((stats.GrassCoverage * 100f).ToString("F1")).Append("%)")
+                .AppendLine();
+
+            // 存活判定预览：Phase 5 的结算就是照这三条判的，提前显示便于观察。
+            _builder.Append("存活判定  兔 ").Append(Mark(stats.RabbitCount > 0))
+                .Append("   狼 ").Append(Mark(stats.WolfCount > 0))
+                .Append("   草 ").Append(Mark(stats.GrassCoverage >= 0.5f))
+                .AppendLine();
+
+            _builder.Append("本 tick   兔 +").Append(stats.RabbitBirths).Append(" -").Append(stats.RabbitDeaths)
+                .Append("   狼 +").Append(stats.WolfBirths).Append(" -").Append(stats.WolfDeaths)
+                .Append("   草被吃 ").Append(stats.GrassEaten)
+                .AppendLine();
+        }
+
+        private static string Mark(bool alive)
+        {
+            return alive ? "存活" : "灭绝";
         }
 
         // ---------------------------------------------------------------- 样式

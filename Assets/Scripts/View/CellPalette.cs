@@ -15,15 +15,19 @@ namespace Omen.View
         public readonly Color Water;
         public readonly Color Land;
         public readonly Color Grass;
+        public readonly Color Rabbit;
+        public readonly Color Wolf;
 
         /// <summary>地形无法识别时的兜底色（洋红色），出现即说明数据有问题。</summary>
         public static readonly Color Fallback = new Color(1f, 0f, 1f, 1f);
 
-        private CellPalette(Color water, Color land, Color grass)
+        private CellPalette(Color water, Color land, Color grass, Color rabbit, Color wolf)
         {
             Water = water;
             Land = land;
             Grass = grass;
+            Rabbit = rabbit;
+            Wolf = wolf;
         }
 
         public static CellPalette FromConfig(IslandConfigData data)
@@ -35,7 +39,28 @@ namespace Omen.View
                 data = fallback;
             }
 
-            return new CellPalette(ToColor(data.WaterColor), ToColor(data.LandColor), ToColor(data.GrassColor));
+            return new CellPalette(
+                ToColor(data.WaterColor),
+                ToColor(data.LandColor),
+                ToColor(data.GrassColor),
+                ToColor(data.RabbitColor),
+                ToColor(data.WolfColor));
+        }
+
+        /// <summary>按物种取颜色。</summary>
+        public Color ForSpecies(SpeciesKind kind)
+        {
+            switch (kind)
+            {
+                case SpeciesKind.Rabbit:
+                    return Rabbit;
+                case SpeciesKind.Wolf:
+                    return Wolf;
+                case SpeciesKind.Grass:
+                    return Grass;
+                default:
+                    return Fallback;
+            }
         }
 
         /// <summary>把 0xRRGGBB 还原成 Color。</summary>

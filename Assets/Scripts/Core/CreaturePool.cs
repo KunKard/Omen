@@ -48,6 +48,25 @@ namespace Omen.Core
         /// <summary>活着的生物数量。存活槽位占据 [0, <see cref="AliveCount"/>) 区间。</summary>
         public int AliveCount { get; private set; }
 
+        /// <summary>
+        /// 池的版本号。任何一次生成或死亡都会 +1。
+        /// View 层靠它判断"要不要重新同步"，于是静止时每帧开销为零 ——
+        /// 只在真正发生过 tick 的那一帧才遍历。
+        /// </summary>
+        public int PoolVersion { get; private set; }
+
+        /// <summary>某个槽位当前是否活着（不校验代际号）。供 View 层按槽位扫描使用。</summary>
+        public bool IsSlotAlive(int slot)
+        {
+            return slot >= 0 && slot < _slots.Length && _slots[slot].Alive;
+        }
+
+        /// <summary>按槽位直接读取生物（不管死活）。供 View 层按槽位扫描使用。</summary>
+        public Creature GetSlot(int slot)
+        {
+            return _slots[slot];
+        }
+
         /// <summary>当前槽位数组容量（由历史峰值决定，不是活着的数量）。</summary>
         public int Capacity
         {
@@ -133,9 +152,14 @@ namespace Omen.Core
                 Age = 0,
             };
 
+            // 注意：Clear() 会把计数器归零。为此 Clear 之后槽位的 Alive 全为 false，
+            // IsAlive 依然能正确拒绝老句柄；只是新生物的代际号会从头再来一遍，
+            // 所以"清空后仍持有老句柄"的调用方必须自己保证不再使用它们（换岛重建就是这个场景）。
+
             _aliveIndexOf[slot] = AliveCount;
             _alive[AliveCount] = slot;
             AliveCount++;
+            PoolVersion++;
 
             return new CreatureHandle { Index = slot, Generation = _slots[slot].Generation };
         }
@@ -154,6 +178,7 @@ namespace Omen.Core
             _slots[slot] = default(Creature);   // Alive=false，释放槽位
             RemoveFromAlive(slot);
             ReleaseSlot(slot);
+            PoolVersion++;
             return true;
         }
 
@@ -233,6 +258,7 @@ namespace Omen.Core
             _freeCount = 0;
             _nextFreshSlot = 0;
             _generationCounter = 0;
+            PoolVersion++;
         }
 
         /// <summary>统计某个物种当前有多少只。</summary>

@@ -73,6 +73,12 @@ namespace Omen.Core
         /// <summary>草地颜色。</summary>
         public uint GrassColor = 0x8FBF4A;
 
+        /// <summary>兔的颜色。</summary>
+        public uint RabbitColor = 0xF2E8D5;
+
+        /// <summary>狼的颜色。</summary>
+        public uint WolfColor = 0x8C2F39;
+
         // ---------------------------------------------------------------- 显示
         /// <summary>
         /// 美术采图标准：一格按多少像素绘制。1 个格子 = 1 世界单位，所以它也是"美术上一格画多大"。
@@ -106,6 +112,8 @@ namespace Omen.Core
                 WaterColor = WaterColor,
                 LandColor = LandColor,
                 GrassColor = GrassColor,
+                RabbitColor = RabbitColor,
+                WolfColor = WolfColor,
                 PixelsPerUnit = PixelsPerUnit,
                 CameraZoom = CameraZoom,
             };

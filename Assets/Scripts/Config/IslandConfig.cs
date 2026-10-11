@@ -70,6 +70,12 @@ namespace Omen.Config
         [Tooltip("草地颜色。")]
         [SerializeField] private Color grassColor = new Color(0.56f, 0.75f, 0.29f);
 
+        [Tooltip("兔的颜色。")]
+        [SerializeField] private Color rabbitColor = new Color(0.95f, 0.91f, 0.84f);
+
+        [Tooltip("狼的颜色。")]
+        [SerializeField] private Color wolfColor = new Color(0.55f, 0.18f, 0.22f);
+
         [Header("显示")]
         [Tooltip("美术采图标准：一格按多少像素绘制。长期契约，改动会影响以后所有美术资源，尽量不要动。")]
         [Range(1, 128)]
@@ -107,6 +113,8 @@ namespace Omen.Config
                 WaterColor = ToRgb24(waterColor),
                 LandColor = ToRgb24(landColor),
                 GrassColor = ToRgb24(grassColor),
+                RabbitColor = ToRgb24(rabbitColor),
+                WolfColor = ToRgb24(wolfColor),
                 PixelsPerUnit = pixelsPerUnit,
                 CameraZoom = cameraZoom,
             };

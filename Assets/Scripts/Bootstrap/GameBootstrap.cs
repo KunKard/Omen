@@ -28,6 +28,9 @@ namespace Omen.Bootstrap
         [Tooltip("网格视图。留空则自动在场景里创建（运行时物体，不写回场景）。")]
         [SerializeField] private GridView gridView;
 
+        [Tooltip("生物视图（兔与狼的小圆点）。留空则自动创建（运行时物体，不写回场景）。")]
+        [SerializeField] private CreatureView creatureView;
+
         [Tooltip("负责构图的相机。留空则自动使用 Camera.main。")]
         [SerializeField] private Camera targetCamera;
 
@@ -38,7 +41,9 @@ namespace Omen.Bootstrap
         [Tooltip("半实时时钟。留空则自动创建（运行时物体，不写回场景）。")]
         [SerializeField] private GameClock gameClock;
 
-        [Header("调试")]
+        [Tooltip("生态系统配置。留空则使用代码内置的默认参数。")]
+        [SerializeField] private EcosystemConfig ecosystemConfig;
+
         [Tooltip("屏上调试面板。留空则自动创建（运行时物体，不写回场景）。")]
         [SerializeField] private Debugging.DebugHud debugHud;
 
@@ -56,6 +61,7 @@ namespace Omen.Bootstrap
         private IslandGrid _grid;
         private IslandGenerator _generator;
         private CameraRig _cameraRig;
+        private EcosystemSimulation _simulation;
         private int _seed;
         private int _seedOverride;
         private bool _hasSeedOverride;
@@ -66,6 +72,12 @@ namespace Omen.Bootstrap
         public IslandGrid Grid
         {
             get { return _grid; }
+        }
+
+        /// <summary>生态系统模拟。视图与 HUD 只读它。</summary>
+        public EcosystemSimulation Simulation
+        {
+            get { return _simulation; }
         }
 
         /// <summary>当前网格视图。</summary>
@@ -89,6 +101,32 @@ namespace Omen.Bootstrap
         private void Awake()
         {
             InitializeGame();
+
+            if (gameClock != null)
+            {
+                gameClock.TickAdvanced += HandleTick;
+            }
+        }
+
+        private void OnDestroy()
+        {
+            if (gameClock != null)
+            {
+                gameClock.TickAdvanced -= HandleTick;
+            }
+        }
+
+        /// <summary>
+        /// 时钟推进一次 = 生态前进一步。
+        /// 模拟与时钟是解耦的：这里只做"接线"，节奏完全由时钟决定。
+        /// 以后 Phase 3 的预兆系统也挂在同一个事件上。
+        /// </summary>
+        private void HandleTick(int tickIndex)
+        {
+            if (_simulation != null)
+            {
+                _simulation.TickOnce();
+            }
         }
 
         private void Update()
@@ -159,6 +197,8 @@ namespace Omen.Bootstrap
 
             BuildGridView();
             SetupCamera(data);
+            SetupEcosystem();
+            SetupCreatureView();
             SetupClock();
             SetupHud();
 
@@ -176,6 +216,46 @@ namespace Omen.Bootstrap
         /// 装配时钟。换岛重建时调 Reset() 把天数拨回第 1 天 —— 否则重建地形后
         /// 时钟还停在第 7 天，观察到的状态和历史对不上，调试时会非常困惑。
         /// </summary>
+        /// <summary>
+        /// 建立生态系统：清空上一次的一切，按配置重新投放初始种群。
+        /// 生态的随机种子由岛屿种子派生，于是"同一张岛 + 同一个种子 ⇒ 完全相同的演化过程"，
+        /// 换岛则会得到不同的开局分布。
+        /// </summary>
+        private void SetupEcosystem()
+        {
+            EcosystemConfigData data = ecosystemConfig != null
+                ? ecosystemConfig.ToData()
+                : new EcosystemConfigData();
+
+            // 派生种子：让生态演化与岛屿布局一一对应，同时保留可复现性。
+            // 乘一个奇数再异或，避免"岛屿种子相近 → 生态开局也相近"。
+            // 派生种子：让生态演化与岛屿布局一一对应，同时保留可复现性。
+            // 乘一个奇数再加偏移，避免"岛屿种子相近 → 生态开局也相近"。
+            // 注意：2654435761 超过 int.MaxValue，必须显式转成 int；乘法溢出是刻意的混淆效果。
+            data.Seed = unchecked(_seed * (int)2654435761u + 101);
+            data.Sanitize();
+
+            _simulation = new EcosystemSimulation(_grid, data);
+            _simulation.Reset(data.Seed);
+        }
+
+        private void SetupCreatureView()
+        {
+            if (creatureView == null)
+            {
+                creatureView = GetComponentInChildren<CreatureView>(true);
+            }
+
+            if (creatureView == null)
+            {
+                var go = new GameObject("CreatureView");
+                go.transform.SetParent(transform, false);
+                creatureView = go.AddComponent<CreatureView>();
+            }
+
+            creatureView.Bind(_simulation, islandConfig);
+        }
+
         private void SetupClock()
         {
             if (gameClock == null)
