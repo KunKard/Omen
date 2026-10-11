@@ -38,6 +38,10 @@ namespace Omen.Core
                 ReproductionEnergyThreshold = 10f,
                 ReproductionEnergyCost = 6f,
                 ReproductionCooldownTicks = 14f,
+                // 兔繁殖花 1 回合（期间不移动、不进食）。
+                BreedingTicks = 1,
+                // 吃草要花一回合：站上去的那一 tick 开始啃，下一 tick 才吃光。
+                EatTicks = 2,
                 PopulationCap = 60,
                 VisionRadius = 5,
                 MoveStepsPerTick = 1,
@@ -62,6 +66,8 @@ namespace Omen.Core
                 ReproductionEnergyThreshold = 26f,
                 ReproductionEnergyCost = 16f,
                 ReproductionCooldownTicks = 50f,
+                // 狼繁殖花 2 回合：比兔更慢，捕食者扩张受抑制。
+                BreedingTicks = 2,
                 PopulationCap = 8,
                 VisionRadius = 4,
                 MoveStepsPerTick = 1,
@@ -86,6 +92,9 @@ namespace Omen.Core
                 SpreadChance = 0.75f,
                 MaxGrassNeighbors = 2,
                 RequireGrassNeighbor = true,
+                // 草不吃东西，两个新字段对它无意义；显式写 0 避免以后误读。
+                EatTicks = 0,
+                BreedingTicks = 1,
             };
         }
 

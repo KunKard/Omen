@@ -39,6 +39,19 @@ namespace Omen.Core
         /// <summary>繁殖时消耗的能量（从亲代身上扣）。</summary>
         public float ReproductionEnergyCost = 3f;
 
+        /// <summary>
+        /// 完成一次繁殖需要几个 tick。期间亲代不移动、不进食。
+        /// 兔 1 回合、狼 2 回合。
+        /// </summary>
+        public int BreedingTicks = 1;
+
+        /// <summary>
+        /// 吃光一格草需要被啃几次。1 = 站上去立刻吃掉；2 = 吃草要花一回合
+        /// （站上去那一 tick 算第一口，下一 tick 才吃光）。
+        /// 注意能量在<b>第一口</b>就给，所以这个值只影响"草何时消失"，不影响兔子的饥饿压力。
+        /// </summary>
+        public int EatTicks = 2;
+
         /// <summary>全局繁殖上限。达到后不再有新个体，防止数量爆炸。0 表示不限。</summary>
         public int PopulationCap = 120;
 
@@ -115,6 +128,8 @@ namespace Omen.Core
             ReproductionCooldownTicks = Clamp(ReproductionCooldownTicks, 1f, 10000f);
             ReproductionEnergyThreshold = Clamp(ReproductionEnergyThreshold, 0f, MaxEnergy);
             ReproductionEnergyCost = Clamp(ReproductionEnergyCost, 0f, MaxEnergy);
+            BreedingTicks = Clamp(BreedingTicks, 1, 20);
+            EatTicks = Clamp(EatTicks, 0, 20);
             PopulationCap = Clamp(PopulationCap, 0, 100000);
             VisionRadius = Clamp(VisionRadius, 0, 128);
             MoveStepsPerTick = Clamp(MoveStepsPerTick, 1, 8);

@@ -232,6 +232,55 @@ namespace Omen.Core
             _slots[handle.Index].ReproductionCooldown = cooldown;
         }
 
+        /// <summary>设置繁殖倒计时与搭档。-1 表示清空搭档（取消繁殖）。</summary>
+        public void SetBreeding(CreatureHandle handle, int ticksRemaining, int partnerSlot)
+        {
+            if (!IsAlive(handle))
+            {
+                return;
+            }
+
+            _slots[handle.Index].BreedingTicks = ticksRemaining;
+            _slots[handle.Index].BreedingPartner = partnerSlot;
+        }
+
+        /// <summary>找出与给定槽位相邻的任意一个同物种生物；找不到返回 false。</summary>
+        public bool TryFindAdjacentMate(int slot, SpeciesKind kind, out int mateSlot)
+        {
+            mateSlot = -1;
+            if (slot < 0 || slot >= _slots.Length || !_slots[slot].Alive)
+            {
+                return false;
+            }
+
+            GridPos origin = _slots[slot].Position;
+
+            for (int i = 0; i < AliveCount; i++)
+            {
+                int other = _alive[i];
+                if (other == slot)
+                {
+                    continue;
+                }
+
+                Creature candidate = _slots[other];
+                if (!candidate.Alive || candidate.Kind != kind)
+                {
+                    continue;
+                }
+
+                int dx = candidate.Position.X - origin.X;
+                int dy = candidate.Position.Y - origin.Y;
+                if (dx >= -1 && dx <= 1 && dy >= -1 && dy <= 1)
+                {
+                    mateSlot = other;
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
         /// <summary>把一只生物的年龄 +1。年龄只用于统计与调试。</summary>
         public void IncrementAge(CreatureHandle handle)
         {

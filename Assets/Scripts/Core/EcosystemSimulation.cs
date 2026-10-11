@@ -241,12 +241,15 @@ namespace Omen.Core
             DrainAndStarve(_rabbitConfig, events, ref rabbitDeaths);
             DrainAndStarve(_wolfConfig, events, ref wolfDeaths);
 
-            // 2) 草扩散
-            SpreadGrass();
-
-            // 3) 动物行动
-            RunAnimalPhase(_rabbitConfig, events, ref rabbitBirths, ref rabbitDeaths, ref wolfDeaths, ref grassEaten);
+            // 2) 狼先行动，兔后行动。
+            //    顺序是规则的一部分：狼先动，才有机会"走到兔子那一格"把它吃掉；
+            //    兔子后动，于是逃跑是对狼本 tick 的位置做出的反应。
             RunAnimalPhase(_wolfConfig, events, ref wolfBirths, ref rabbitDeaths, ref wolfDeaths, ref grassEaten);
+            RunAnimalPhase(_rabbitConfig, events, ref rabbitBirths, ref rabbitDeaths, ref wolfDeaths, ref grassEaten);
+
+            // 3) 草扩散放在动物之后：让草"补位"到动物刚腾出来的格子上。
+            //    （草只按自己的规则长，与动物无关；放这里纯粹是为了让本 tick 的画面一起更新。）
+            SpreadGrass();
 
             _tick++;
             RefreshStats(rabbitBirths, rabbitDeaths, wolfBirths, wolfDeaths, grassEaten);
@@ -424,26 +427,25 @@ namespace Omen.Core
                 }
 
                 _animalsConsidered++;
+
+                // --- 繁殖中：这一 tick 只用来"生"，不移动也不进食 ---
+                if (creature.BreedingTicks > 0)
+                {
+                    if (AdvanceBreeding(handle, config, events))
+                    {
+                        births++;
+                    }
+
+                    continue;
+                }
+
                 float energy = creature.Energy;
                 GridPos positionBefore = creature.Position;
                 int movesBefore = _movesSucceeded;
                 int blockedBefore = _movesBlocked;
+                bool moved = false;
 
-                // --- 就地进食：草食动物站在草地上就吃 ---
-                //
-                // 这一步刻意放在"逃跑"之前，而且不受逃跑影响。
-                // 最初的实现把进食排在逃跑之后，结果是：小岛上狼的视野覆盖大半张图，
-                // 兔子从第 1 tick 起就一直在逃，永远没机会吃哪怕一口草，20 只兔在第 2 天集体饿死。
-                // 而"站在原地啃一口"是零成本动作，没有任何理由被逃跑取消 —— 这是行为逻辑的漏洞，不是参数问题。
-                if (config.PreyKind == SpeciesKind.None && _grid.TryConsumeGrass(creature.Position))
-                {
-                    energy = Clamp(energy + config.EnergyPerFood, 0f, config.MaxEnergy);
-                    grassEaten++;
-                    _mealsEaten++;
-                    _pool.SetEnergy(handle, energy);
-                }
-
-                // --- 移动（肉食动物在移动中撞上猎物即吃）---
+                // --- 先决定行进，再决定进食 ---
                 bool hungry = energy < config.MaxEnergy * 0.75f;
                 bool hunting = config.PreyKind != SpeciesKind.None && hungry;
 
@@ -470,16 +472,37 @@ namespace Omen.Core
                     continue;
                 }
 
+                moved = _movesSucceeded > movesBefore;
+
+                // --- 移动之后的进食 ---
+                //
+                // 顺序至关重要：进食必须在移动<b>之后</b>。
+                // 若放在移动之前，紧接着的移动会调 CancelEating 把刚建立的啃食进度清掉，
+                // 草就永远吃不到（第一版正是这个 bug，兔群在第 18 tick 集体饿死）。
+                //
+                // 规则很直白：<b>移动到哪一格，就啃哪一格</b>。
+                // 所以移动进来的那一 tick 立刻开始啃（进度 1/N），停下来的那一格继续啃。
+                if (config.PreyKind == SpeciesKind.None)
+                {
+                    GridPos grazeAt = creature.Position;
+                    if (_pool.TryGet(handle, out Creature settled))
+                    {
+                        grazeAt = settled.Position;
+                    }
+
+                    if (_grid.Get(grazeAt.X, grazeAt.Y).HasGrass)
+                    {
+                        energy = Graze(handle, config, grazeAt, energy, ref grassEaten);
+                    }
+                }
+
                 // 本 tick 这一只既没成功移动、也没被阻挡 —— 说明它压根没想动。
-                // 最典型的场景是狼吃饱了又看不到猎物（`shouldHunt` 为 false）。
-                // 注意三个计数器必须互斥，否则"移动率"会算错（第一版就踩了这个坑：
-                // 被阻挡的个体同时又进了"没尝试"的格子，两者相加超过了动物总数）。
-                if (_movesSucceeded == movesBefore && _movesBlocked == blockedBefore)
+                if (!moved && _movesBlocked == blockedBefore)
                 {
                     _movesNotAttempted++;
                 }
 
-                // 移动过程中能量可能因进食变化，重新取一次
+                // 移动与进食都可能改动能量，重新取一次
                 if (_pool.TryGet(handle, out creature))
                 {
                     energy = creature.Energy;
@@ -488,25 +511,133 @@ namespace Omen.Core
                 _pool.SetEnergy(handle, Clamp(energy, 0f, config.MaxEnergy));
 
                 // --- 繁殖 ---
-                if (energy >= config.ReproductionEnergyThreshold && creature.ReproductionCooldown <= 0f)
-                {
-                    if (TryReproduce(handle, config, creature.Position))
-                    {
-                        _pool.SetReproductionCooldown(handle, config.ReproductionCooldownTicks);
-                        _pool.SetEnergy(handle, Clamp(energy - config.ReproductionEnergyCost, 0f, config.MaxEnergy));
-                        births++;
+                TryStartBreeding(handle, config, creature);
+            }
+        }
 
-                        if (_pool.TryGet(handle, out Creature afterBirth))
-                        {
-                            Record(events, config.Kind, EcosystemEventType.Born, afterBirth.Position);
-                        }
-                    }
-                }
-                else if (creature.ReproductionCooldown > 0f)
+        /// <summary>
+        /// 就地啃食。规则：<b>站上草格后要花一个 tick 才能把草完全吃掉</b>。
+        ///
+        /// 实现：给这一格记"已经被啃了几 tick"（<see cref="IslandGrid.TickEating"/>），
+        /// 啃满 <see cref="SpeciesConfigData.EatTicks"/> 次后草才消失。
+        /// 能量在<b>第一口</b>就给 —— 否则边吃边走的兔子永远等不到进度达标那一刻，一口都吃不上
+        /// （第一版就让能量等到"进度达标"才给，结果兔群在第 18 tick 集体饿死）。
+        /// 所以这条规则的实际代价是：<b>草要过一回合才消失，而不是兔子要饿一回合</b>。
+        /// 中途走开则进度作废（<see cref="IslandGrid.CancelEating"/>），能量已经到手。
+        ///
+        /// <b>必须在移动之后调用</b>：若在移动之前调用，紧接着的移动会把刚建立的啃食进度取消掉。
+        /// </summary>
+        private float Graze(CreatureHandle handle, SpeciesConfigData config, GridPos position, float energy,
+            ref int grassEaten)
+        {
+            if (!_grid.Get(position.X, position.Y).HasGrass)
+            {
+                return energy;
+            }
+
+            bool firstBite = _grid.GetEatingTicks(position) <= 0;
+
+            if (_grid.TickEating(position, Math.Max(1, config.EatTicks)))
+            {
+                // 啃够了：草从这一格消失
+                grassEaten++;
+                _mealsEaten++;
+            }
+
+            // 第一口就给能量。这是"吃到了"的判定点，与草何时消失无关。
+            if (firstBite)
+            {
+                energy = Clamp(energy + config.EnergyPerFood, 0f, config.MaxEnergy);
+                _pool.SetEnergy(handle, energy);
+            }
+
+            return energy;
+        }
+
+        /// <summary>
+        /// 尝试开始繁殖：需要能量达标、冷却结束、且<b>相邻格上有同物种</b>。
+        /// 满足则先扣能量并进入倒计时（兔 1 tick、狼 2 tick），期间不移动。
+        /// </summary>
+        private void TryStartBreeding(CreatureHandle handle, SpeciesConfigData config, Creature creature)
+        {
+            if (creature.Energy < config.ReproductionEnergyThreshold)
+            {
+                // 没到门槛时照常递减冷却，保证"等冷却"和"攒能量"能并行。
+                if (creature.ReproductionCooldown > 0f)
                 {
                     _pool.SetReproductionCooldown(handle, creature.ReproductionCooldown - 1f);
                 }
+
+                return;
             }
+
+            if (creature.ReproductionCooldown > 0f)
+            {
+                _pool.SetReproductionCooldown(handle, creature.ReproductionCooldown - 1f);
+                return;
+            }
+
+            // 人数上限
+            if (config.PopulationCap > 0 && _pool.CountSpecies(config.Kind) >= config.PopulationCap)
+            {
+                return;
+            }
+
+            // 需要相邻的同伴
+            if (!_pool.TryFindAdjacentMate(handle.Index, config.Kind, out int mateSlot))
+            {
+                return;
+            }
+
+            // 先付代价再进入倒计时：中途被吃掉的话，能量就白花了。
+            _pool.SetEnergy(handle, Clamp(creature.Energy - config.ReproductionEnergyCost, 0f, config.MaxEnergy));
+            _pool.SetReproductionCooldown(handle, config.ReproductionCooldownTicks);
+            _pool.SetBreeding(handle, Math.Max(1, config.BreedingTicks), mateSlot);
+        }
+
+        /// <summary>
+        /// 推进繁殖倒计时。归零时再确认一次搭档仍在旁边，然后生出后代。
+        /// 返回 true 表示这一 tick 成功生出了一只。
+        /// </summary>
+        private bool AdvanceBreeding(CreatureHandle handle, SpeciesConfigData config, List<EcosystemEvent> events)
+        {
+            if (!_pool.TryGet(handle, out Creature creature))
+            {
+                return false;
+            }
+
+            int remaining = creature.BreedingTicks - 1;
+            if (remaining > 0)
+            {
+                _pool.SetBreeding(handle, remaining, creature.BreedingPartner);
+                return false;
+            }
+
+            // 倒计时结束：搭档可能已经死了或走开了，那这次繁殖作废。
+            bool partnerStillThere = creature.BreedingPartner >= 0
+                && _pool.IsSlotAlive(creature.BreedingPartner)
+                && IsAdjacent(creature.Position, _pool.GetSlot(creature.BreedingPartner).Position);
+
+            _pool.SetBreeding(handle, 0, -1);
+
+            if (!partnerStillThere)
+            {
+                return false;
+            }
+
+            if (config.PopulationCap > 0 && _pool.CountSpecies(config.Kind) >= config.PopulationCap)
+            {
+                return false;
+            }
+
+            if (!TryFindEmptyLand(creature.Position, out GridPos spot))
+            {
+                return false;
+            }
+
+            SpawnAnimal(config, spot);
+            Record(events, config.Kind, EcosystemEventType.Born, spot);
+            return true;
         }
 
         /// <summary>
@@ -560,17 +691,23 @@ namespace Omen.Core
                 return false;
             }
 
-            // 2) 追猎
+            // 2) 追猎：狼必须<b>走到兔子那一格</b>才能吃掉它。
+            //    走到同一格 = 吃掉并占据该格；所以吃与移动是同一个动作，不额外消耗回合。
+            //    （旧规则是"相邻即可吃"，那让狼从斜对角凭空咬到兔子，观感上像隔空取物。）
             if (hunting && TryFindNearestCreature(from, config.PreyKind, config.VisionRadius, out GridPos prey))
             {
-                // 已经贴着猎物：直接吃，不消耗移动。这是狼唯一能吃到东西的入口。
-                if (IsAdjacent(from, prey))
+                if (TryStepToward(from, prey, true, out GridPos chase))
                 {
-                    return TryEatPreyAt(handle, config, prey, events, ref rabbitDeaths, ref wolfDeaths);
-                }
+                    // 目标格正是猎物所在 → 走进去吃掉
+                    if (chase == prey && TryEatPreyAt(handle, config, prey, events, ref rabbitDeaths, ref wolfDeaths))
+                    {
+                        _grid.CancelEating(from);
+                        _grid.MoveOccupant(from, prey, handle.Index);
+                        _pool.SetPosition(handle, prey);
+                        _movesSucceeded++;
+                        return true;
+                    }
 
-                if (TryStepToward(from, prey, out GridPos chase))
-                {
                     return ApplyMove(handle, config, from, chase);
                 }
             }
@@ -580,7 +717,7 @@ namespace Omen.Core
                 && creature.Energy < config.MaxEnergy * 0.9f
                 && TryFindNearestGrass(from, config.VisionRadius, out GridPos grass))
             {
-                if (TryStepToward(from, grass, out GridPos graze))
+                if (TryStepToward(from, grass, false, out GridPos graze))
                 {
                     return ApplyMove(handle, config, from, graze);
                 }
@@ -597,13 +734,16 @@ namespace Omen.Core
             return false;
         }
 
-        /// <summary>把生物从 from 挪到 to，并同步网格与能量消耗。</summary>
+        /// <summary>把生物从 from 挪到 to，并同步网格、清理啃食进度、累计移动统计。</summary>
         private bool ApplyMove(CreatureHandle handle, SpeciesConfigData config, GridPos from, GridPos to)
         {
             if (from == to)
             {
                 return false;
             }
+
+            // 走开了就不再啃这一格：草只受一次"开始啃"的影响，进度作废。
+            _grid.CancelEating(from);
 
             _grid.MoveOccupant(from, to, handle.Index);
             _pool.SetPosition(handle, to);
@@ -709,22 +849,6 @@ namespace Omen.Core
             return false;
         }
 
-        private bool TryReproduce(CreatureHandle handle, SpeciesConfigData config, GridPos position)
-        {
-            if (config.PopulationCap > 0 && _pool.CountSpecies(config.Kind) >= config.PopulationCap)
-            {
-                return false;
-            }
-
-            if (!TryFindEmptyLand(position, out GridPos spot))
-            {
-                return false;
-            }
-
-            SpawnAnimal(config, spot);
-            return true;
-        }
-
         // ---------------------------------------------------------------- 寻路与搜索
 
         /// <summary>在视野内找最近的某物种。视野为 0 时退化成全场搜索。</summary>
@@ -800,8 +924,14 @@ namespace Omen.Core
             return found;
         }
 
-        /// <summary>朝目标走一步。目标格被占时不算可走（吃猎物的入口在 TryStep 里单独处理）。</summary>
-        private bool TryStepToward(GridPos from, GridPos target, out GridPos result)
+        /// <summary>
+        /// 朝目标走一步。
+        /// </summary>
+        /// <param name="targetIsPrey">
+        /// 目标格上站着猎物。为 true 时允许把"猎物所在格"当成可走目标 ——
+        /// 这是狼能追进兔子那一格的前提；为 false 时（找草、逃跑）遇到被占的格子就绕开。
+        /// </param>
+        private bool TryStepToward(GridPos from, GridPos target, bool targetIsPrey, out GridPos result)
         {
             result = from;
 
@@ -809,17 +939,17 @@ namespace Omen.Core
             int dy = Math.Sign(target.Y - from.Y);
 
             // 先试对角线（更贴近直线追击），再试单轴
-            if (dx != 0 && dy != 0 && TryCandidate(from.X + dx, from.Y + dy, ref result))
+            if (dx != 0 && dy != 0 && TryCandidate(from.X + dx, from.Y + dy, targetIsPrey, ref result))
             {
                 return true;
             }
 
-            if (dx != 0 && TryCandidate(from.X + dx, from.Y, ref result))
+            if (dx != 0 && TryCandidate(from.X + dx, from.Y, targetIsPrey, ref result))
             {
                 return true;
             }
 
-            if (dy != 0 && TryCandidate(from.X, from.Y + dy, ref result))
+            if (dy != 0 && TryCandidate(from.X, from.Y + dy, targetIsPrey, ref result))
             {
                 return true;
             }
@@ -839,17 +969,17 @@ namespace Omen.Core
                 return TryStepRandom(from, out result);
             }
 
-            if (dx != 0 && dy != 0 && TryCandidate(from.X + dx, from.Y + dy, ref result))
+            if (dx != 0 && dy != 0 && TryCandidate(from.X + dx, from.Y + dy, false, ref result))
             {
                 return true;
             }
 
-            if (dx != 0 && TryCandidate(from.X + dx, from.Y, ref result))
+            if (dx != 0 && TryCandidate(from.X + dx, from.Y, false, ref result))
             {
                 return true;
             }
 
-            if (dy != 0 && TryCandidate(from.X, from.Y + dy, ref result))
+            if (dy != 0 && TryCandidate(from.X, from.Y + dy, false, ref result))
             {
                 return true;
             }
@@ -886,7 +1016,7 @@ namespace Omen.Core
             return false;
         }
 
-        private bool TryCandidate(int x, int y, ref GridPos result)
+        private bool TryCandidate(int x, int y, bool allowOccupied, ref GridPos result)
         {
             if (!_grid.InBounds(x, y))
             {
@@ -894,7 +1024,12 @@ namespace Omen.Core
             }
 
             CellState cell = _grid.Get(x, y);
-            if (cell.Type != TileType.Land || cell.HasCreature)
+            if (cell.Type != TileType.Land)
+            {
+                return false;
+            }
+
+            if (cell.HasCreature && !allowOccupied)
             {
                 return false;
             }

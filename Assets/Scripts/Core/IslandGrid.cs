@@ -231,8 +231,79 @@ namespace Omen.Core
             }
 
             cell.HasGrass = false;
+            cell.EatingTicks = 0;
             WriteCell(index, cell);
             return true;
+        }
+
+        // ---------------------------------------------------------------- 啃食进度
+
+        /// <summary>这一格的草已经被啃了几 tick。0 表示还没有被啃过。</summary>
+        public int GetEatingTicks(GridPos pos)
+        {
+            if (!InBounds(pos.X, pos.Y))
+            {
+                return 0;
+            }
+
+            return _cells[GridUtility.ToIndex(pos.X, pos.Y, Width)].EatingTicks;
+        }
+
+        /// <summary>
+        /// 推进这一格的啃食进度（被啃一次）。返回 true 表示啃够了，草从这一格消失。
+        /// 只在格子上仍有草时有效。
+        /// </summary>
+        /// <param name="ticksNeeded">要啃多少次才会吃光。</param>
+        public bool TickEating(GridPos pos, int ticksNeeded)
+        {
+            if (!InBounds(pos.X, pos.Y))
+            {
+                return false;
+            }
+
+            if (ticksNeeded < 1)
+            {
+                ticksNeeded = 1;
+            }
+
+            int index = GridUtility.ToIndex(pos.X, pos.Y, Width);
+            CellState cell = _cells[index];
+            if (!cell.HasGrass)
+            {
+                return false;
+            }
+
+            cell.EatingTicks++;
+            if (cell.EatingTicks < ticksNeeded)
+            {
+                WriteCell(index, cell);
+                return false;
+            }
+
+            // 啃够了：草消失，进度清零
+            cell.HasGrass = false;
+            cell.EatingTicks = 0;
+            WriteCell(index, cell);
+            return true;
+        }
+
+        /// <summary>取消这一格的啃食进度（啃食者走开了）。</summary>
+        public void CancelEating(GridPos pos)
+        {
+            if (!InBounds(pos.X, pos.Y))
+            {
+                return;
+            }
+
+            int index = GridUtility.ToIndex(pos.X, pos.Y, Width);
+            CellState cell = _cells[index];
+            if (cell.EatingTicks == 0)
+            {
+                return;
+            }
+
+            cell.EatingTicks = 0;
+            WriteCell(index, cell);
         }
 
         /// <summary>把某格标记为被生物占据。传 <see cref="CellState.NoCreature"/> 表示清空。</summary>
@@ -349,11 +420,21 @@ namespace Omen.Core
 
         // ---------------------------------------------------------------- 内部
 
-        /// <summary>统一的写入出口：更新统计、递增版本号、标记脏格子。</summary>
+        /// <summary>
+        /// 统一的写入出口：更新统计、递增版本号、标记脏格子。
+        ///
+        /// 这里的"值没变就跳过"判断必须覆盖 CellState 的<b>每一个字段</b>。
+        /// 曾经漏掉 EatingTicks，后果是：啃食进度写不进去（WriteCell 认为"什么都没变"直接返回），
+        /// 于是兔子能开始啃、却永远吃不到草，整群兔在第 18 tick 集体饿死。
+        /// 以后每给 CellState 加字段，都要同步加到这里。
+        /// </summary>
         private void WriteCell(int index, CellState next)
         {
             CellState previous = _cells[index];
-            if (previous.Type == next.Type && previous.HasGrass == next.HasGrass && previous.OccupantId == next.OccupantId)
+            if (previous.Type == next.Type
+                && previous.HasGrass == next.HasGrass
+                && previous.OccupantId == next.OccupantId
+                && previous.EatingTicks == next.EatingTicks)
             {
                 return;
             }

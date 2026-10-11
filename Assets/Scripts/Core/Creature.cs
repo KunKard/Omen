@@ -36,6 +36,22 @@ namespace Omen.Core
         /// <summary>已经活了多久（tick 数）。仅用于调试与统计。</summary>
         public int Age;
 
+        /// <summary>
+        /// 繁殖倒计时。&gt; 0 表示正在繁殖中，还需要这么多 tick 才会生出后代。
+        /// 0 表示当前没有在繁殖。
+        ///
+        /// 兔与狼的繁殖耗时不同（兔 1 回合、狼 2 回合），这段时间它们不移动 ——
+        /// 这正是"繁殖要花时间"这个规则在数据上的体现。
+        /// </summary>
+        public int BreedingTicks;
+
+        /// <summary>
+        /// 繁殖搭档的槽位下标；-1 表示没有搭档。
+        /// 倒计时结束时需要再确认一次搭档还在旁边，否则取消这次繁殖
+        /// （搭档可能在半途被吃掉或走开了）。
+        /// </summary>
+        public int BreedingPartner;
+
         public bool IsAnimal
         {
             get { return Kind.IsAnimal(); }

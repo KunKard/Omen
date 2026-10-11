@@ -18,6 +18,16 @@ namespace Omen.Core
         /// <summary>占据这一格的生物 ID；<see cref="NoCreature"/> 表示空。</summary>
         public int OccupantId;
 
+        /// <summary>
+        /// 这一格的草正在被啃：还需要几个 tick 才会被吃光。
+        /// 0 表示没有被正在进行的啃食。
+        ///
+        /// 为什么把"啃食进度"放在格子上而不是生物身上：
+        /// 它是"这棵草被啃到什么程度"的属性，生物走开后进度自然作废。
+        /// 放在格子上，兔子离开时只需清掉这一格的状态，不用满世界找那只兔子。
+        /// </summary>
+        public int EatingTicks;
+
         /// <summary>表示"没有生物"的占位值。</summary>
         public const int NoCreature = -1;
 
