@@ -269,7 +269,66 @@ Assets/
 |---|---|---|---|
 | 1.1 | `GridPos / TileType / CellState / GridUtility / IslandGrid / ValueNoise / IslandGenerator / IslandConfigData / IslandConfig / GameBootstrap` | `GameBootstrap` 打印 ASCII 地图（`~`=水，`.`=陆），Console 肉眼确认形状 | ✅ 已验收 |
 | 1.2 | `WorldGrid / RuntimeSprite / CellPalette / TileView / GridView / CameraRig` | Play 看到彩色岛，相机居中留边，画面不糊 | ✅ 已验收（Camera Zoom = 3） |
-| 1.3 | `GameClockData / GameClockConfig / GameClock / DebugHud` + 热键 | Day 每 12 秒 +1，Tick 每秒 +1，HUD 实时刷新，热键重建岛 | 🚧 待验收 |
+| 1.3 | `GameClockData / GameClockConfig / GameClock / DebugHud` + 热键 | Day 每 12 秒 +1，Tick 每秒 +1，HUD 实时刷新，热键重建岛 | ✅ 已验收 |
+
+---
+
+## 12.13 Phase 2 详规
+
+### 12.13.1 执行顺序
+
+| 步骤 | 内容 | 状态 |
+|---|---|---|
+| 2.1 | `SpeciesKind / Creature / CreatureHandle / CreaturePool / SpeciesConfigData / DeterministicRandom` | ✅ 完成 |
+| 2.2 | `EcosystemConfigData / EcosystemStats / EcosystemSimulation`（草/兔/狼全部行为） | ✅ 完成 |
+| 2.3 | `CreatureView` 生物视图 + HUD 真实计数 + `EcosystemConfig` 资产 | ✅ 待验收 |
+| 2.4 | 平衡调参（等用户确认手感方向） | ⬜ |
+
+### 12.13.2 Phase 2.3 在 Unity 里的验收步骤
+
+**不需要手动操作**，`GameBootstrap` 会自动创建 `CreatureView` 与生态系统。
+
+1. 切到 Unity，等编译完
+2. 按 **Play**
+3. 岛上应出现**浅色小圆点**（兔）与**暗红色较大圆点**（狼），随时间移动；草地会扩张与消退
+
+**验收要点**
+
+- [ ] 岛上有浅色小圆点（兔）在移动
+- [ ] 有暗红色更大的圆点（狼）在移动，会追着兔跑
+- [ ] 草地（亮绿色）会扩张，被啃过的地方会变回深绿，一段时间后又长回来
+- [ ] HUD 显示 `兔 N / 狼 N / 草 N/112 (N%)`
+- [ ] HUD 的 `本 tick 兔 +N -N` 数字在变化
+- [ ] HUD 的 `存活判定` 一行会随着灭绝变红字（显示"灭绝"）
+- [ ] 按 **空格** 暂停后，生物与草**全部静止**（说明模拟确实是由时钟驱动的）
+- [ ] 按 **R / N** 重建岛屿后，生物重新投放、Day 回到 1
+- [ ] Console 零报错
+
+### 12.13.3 生物视图的实现要点
+
+| 机制 | 说明 |
+|---|---|
+| 对象池 | 精灵物体数量 = 池容量，**创建后永不增删**；画不画由 `SpriteRenderer.enabled` 控制 |
+| 槽位代际 | 用"槽位 + 代际号"判断哪个物体代表哪只生物。槽位被复用时代际号会变，于是能立刻发现"该换主人了"，而不是把死亡生物的精灵留在原地 |
+| 零开销空转 | 只在 `CreaturePool.PoolVersion` 变化时同步（即发生过一次 tick）。没有 tick 的帧几乎不做事 |
+| 圆点而非方块 | 运行时生成 12 像素实心圆（`RuntimeSprite.Disc`），一眼区分"活物"与地形 |
+
+### 12.13.4 当前平衡状态（500 局实测，默认参数、无预兆、无押注）
+
+| 指标 | 结果 |
+|---|---|
+| 草覆盖率 ≥50% | **89.0%** |
+| 兔存活到第 15 天 | 10.2% |
+| 狼存活到第 15 天 | 10.0% |
+| 兔 + 狼都活 | 6.6% |
+| **三者同时达标** | **3.4%** |
+| 兔灭绝中位天数 | 7.3 天 |
+| 狼灭绝中位天数 | 10.2 天 |
+
+**待用户拍板**（Phase 2.4）：默认该"稳定振荡"还是"注定崩溃"。三个候选方向：
+- A. 稳定振荡 —— 三者达标率调到 70%+
+- B. 注定崩溃 —— 保持当前 3.4%
+- C. 中间态 —— 三者达标率 30~40%（推荐）
 
 ### 12.10 Phase 1.3 在 Unity 里的验收步骤
 
