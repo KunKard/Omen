@@ -67,10 +67,20 @@ namespace Omen.Core
         public float SpreadChance = 1f;
 
         /// <summary>
-        /// 一个草格允许的草邻居数量上限。超过则不再扩散（自限）。
-        /// 0 表示不限制 —— 那样草会在十几个 tick 内铺满全岛，让"覆盖 50%"这个生存条件失去意义。
+        /// 草扩散时，<b>目标格</b>允许的草邻居数量上限。达到上限的空地不再被填。
+        /// 0 表示不限制（草会一路铺满全岛）。
+        ///
+        /// 检查目标格而不是源格，是让"草覆盖率"存在平衡点的关键：
+        ///   被啃掉的格子草邻居少 → 能长回来（草可再生）
+        ///   被草包围的空隙草邻居多 → 不再填（覆盖率有上限）
         /// </summary>
         public int MaxGrassNeighbors = 0;
+
+        /// <summary>
+        /// 是否要求目标格至少挨着一格草才能长草。
+        /// 开启时草更像"蔓延的植被"，不会凭空出现在远离草丛的地方。
+        /// </summary>
+        public bool RequireGrassNeighbor = true;
 
         /// <summary>草的"能量"永不消耗，此字段对它无意义；保留是为了让配置结构统一。</summary>
         public bool IsPlant

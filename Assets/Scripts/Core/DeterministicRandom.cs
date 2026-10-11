@@ -117,5 +117,11 @@ namespace Omen.Core
         {
             return new DeterministicRandom(0) { _state = _state };
         }
+
+        /// <summary>用新种子重置。换岛 / 重开一局时调用，保证同种子得到同序列。</summary>
+        public void Reset(int seed)
+        {
+            _state = seed == 0 ? 0x9E3779B9u : unchecked((uint)seed);
+        }
     }
 }
