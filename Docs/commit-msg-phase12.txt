@@ -1,0 +1,25 @@
+Phase 1.2: 网格视图层 + 相机自动构图 + 像素对齐
+
+View 层（新增）：
+- WorldGrid：网格坐标 <-> 世界坐标的唯一转换入口（架构铁律 4）
+- RuntimeSprite：1x1 白色 Sprite 工厂，Phase 1 的占位美术
+- CellPalette：把 Core 的 0xRRGGBB 翻译成 UnityEngine.Color
+- TileView：单格视觉，只读数据不改数据（架构铁律 2）
+- GridView：装配 256 个 Tile，按脏格子增量刷新
+- CameraRig：自动构图 + 像素完美对齐 + 分辨率变化自适应
+
+Core 层改动：
+- IslandGrid 新增脏格子追踪（MarkDirty / DirtyCount / GetDirtyIndex /
+  IsDirty / ClearDirty），View 层得以只刷新真正变化的格子
+- Version 改为"重建时归零"，使"版本号变小"成为整图重建的可靠信号
+  （原先只增不减，导致全量刷新信号永远不触发，已由单测抓出）
+- IslandConfigData 补回配色字段（0xRRGGBB）与 PixelsPerUnit
+
+GameBootstrap：
+- 自动创建 GridView、给相机挂 CameraRig，用户无需手动拖引用
+- 新增 "Regenerate Island (Same Seed)" 右键菜单，用于验证确定性
+
+验证：
+- Core 层 40 项单元检查全部通过（dotnet 控制台工程）
+- 16 个源文件对着 Unity 自身的 Mono 4.7.1-api + UnityEngine 程序集
+  用 Roslyn 编译通过，0 错误 0 警告

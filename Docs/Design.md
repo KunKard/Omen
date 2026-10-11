@@ -250,11 +250,11 @@ Assets/
 
 | 步骤 | 内容 | 验收方式 | 状态 |
 |---|---|---|---|
-| 1.1 | `GridPos / TileType / CellState / GridUtility / IslandGrid / ValueNoise / IslandGenerator / IslandConfigData / IslandConfig / GameBootstrap` | `GameBootstrap` 打印 ASCII 地图（`~`=水，`.`=陆），Console 肉眼确认形状 | ✅ 代码完成 |
-| 1.2 | `WorldGrid / TileView / GridView / CameraRig` | Play 看到彩色岛，相机居中留边 | ⬜ |
+| 1.1 | `GridPos / TileType / CellState / GridUtility / IslandGrid / ValueNoise / IslandGenerator / IslandConfigData / IslandConfig / GameBootstrap` | `GameBootstrap` 打印 ASCII 地图（`~`=水，`.`=陆），Console 肉眼确认形状 | ✅ 已验收 |
+| 1.2 | `WorldGrid / RuntimeSprite / CellPalette / TileView / GridView / CameraRig` | Play 看到彩色岛，相机居中留边，画面不糊 | 🚧 待验收 |
 | 1.3 | `GameClock / DebugHud` + `R`/`N` 热键 | Day 每 12 秒 +1，Tick 每秒 +1，热键重建岛 | ⬜ |
 
-### 12.6 Phase 1.1 在 Unity 里的验收步骤
+### 12.6 Phase 1.1 在 Unity 里的验收步骤（已完成，保留备查）
 
 1. 用 **Unity 2022.3.x** 打开本项目（首次打开会重新导入 Library，需要几分钟）
 2. 打开场景 `Assets/Scenes/SampleScene.unity`
@@ -294,6 +294,65 @@ Assets/
 结果噪声与形状的梯度都被径向距离场的梯度（约 1.0）淹没，500 个种子生成的都是**正圆**。
 改成乘性遮罩 `d / mask` 后，轮廓偏移量随岛半径等比缩放，半岛与海湾才真正显现。
 **结论：在距离场上做形状扰动，必须用乘法而不是加法。**
+
+### 12.8 Phase 1.2 在 Unity 里的验收步骤
+
+**不需要任何手动操作** —— `GameBootstrap` 会在 `Awake` 里自动创建 `GridView` 并给相机挂上 `CameraRig`。
+
+1. 切到 Unity 窗口，等它编译完（右下角转圈结束）
+2. 直接按 **Play**
+3. 应该看到：深蓝色海水包围一块不规则的绿色陆地，整体居中，四周有留白
+
+**验收要点**
+
+- [ ] 岛是**绿色**、海水是**深蓝色**，两种颜色对比明显
+- [ ] 岛**完整在画面内**，没有贴着屏幕边缘或被裁掉
+- [ ] 岛**居中**，上下左右留白大致对称
+- [ ] 方块边缘**锐利不发虚**（像素对齐生效；如果糊了告诉我，是 `CameraRig` 的整数对齐没生效）
+- [ ] Console 依然是那套 ASCII 地图 + 统计，**没有新的报错或警告**
+- [ ] Hierarchy 里出现 `GameBootstrap/GridView/Tile_0_0` … `Tile_15_15` 共 256 个物体
+
+**如果岛看起来偏小**：这是**故意**的。像素完美模式（`CameraRig.limitZoomToPixelsPerUnit = true`）
+把放大倍数锁在 `PPU = 16`，即 1 格恰好等于 16 个屏幕像素。在 1920×1080 下，16 格 ≈ 256 像素，
+只占屏幕高度的约 47%。
+
+要看"铺满屏幕"的效果，有两个办法：
+- 玩法上更好的是把 `IslandConfig` 的 **Width / Height 改成 24 或 32**（网格更大，岛更大）
+- 视觉上把 `Main Camera → CameraRig → Limit Zoom To Pixels Per Unit` **取消勾选**（岛铺满屏幕，但缩放倍数可能非整数）
+
+**Phase 1.2 新增的架构机制：脏格子追踪**
+
+`IslandGrid` 现在维护一份"自上次同步以来变过的格子"列表：
+
+| 机制 | 用途 |
+|---|---|
+| `DirtyCount` / `GetDirtyIndex(i)` | View 层只遍历变了的格子，不必每帧扫 256 格 |
+| `IsDirty(index)` | O(1) 查询单格是否变过 |
+| `ClearDirty()` | View 层同步完成后清空 |
+| `Version` **重建时归零** | "版本号变小"是"整张图被换过"的可靠信号，触发全量刷新 |
+
+效果：无变化时每帧开销约等于零；Phase 2 草蔓延/生物移动时，只刷新真正动过的格子。
+
+### 12.9 Phase 1 的文件清单
+
+| 文件 | 层级 | 职责 |
+|---|---|---|
+| `Core/GridPos.cs` | Core | 坐标 struct，无 GC 哈希 |
+| `Core/TileType.cs` | Core | 地形枚举 |
+| `Core/CellState.cs` | Core | 格子状态（地形 + 草 + 占据者） |
+| `Core/GridUtility.cs` | Core | 索引 / 四邻域 / 洪水填充 / 最大连通块，零 GC |
+| `Core/ValueNoise.cs` | Core | 整数哈希值噪声，跨平台确定性 |
+| `Core/IslandGenerator.cs` | Core | 岛屿生成 5 步流水线 |
+| `Core/IslandGrid.cs` | Core | **唯一真相来源** + 统计 + 脏格子追踪 |
+| `Core/IslandConfigData.cs` | Core | 生成参数与配色的纯数据载体 |
+| `Config/IslandConfig.cs` | Config | ScriptableObject，Inspector 调参 |
+| `View/WorldGrid.cs` | View | **坐标转换唯一入口**（架构铁律 4） |
+| `View/RuntimeSprite.cs` | View | 1x1 白色 Sprite 工厂（Phase 1 占位美术） |
+| `View/CellPalette.cs` | View | 把 Core 的 0xRRGGBB 翻译成 Color |
+| `View/TileView.cs` | View | 单格视觉，只读不改数据 |
+| `View/GridView.cs` | View | 256 个 Tile 的创建与脏同步 |
+| `View/CameraRig.cs` | View | 构图 + 像素完美对齐 |
+| `Bootstrap/GameBootstrap.cs` | Bootstrap | 场景唯一入口，只做装配 |
 
 ### 12.5 参数默认值（Inspector 可调，无需改代码）
 

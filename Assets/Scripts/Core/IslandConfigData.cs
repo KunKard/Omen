@@ -59,6 +59,27 @@ namespace Omen.Core
         /// <summary>每层倍频程的振幅衰减。越小则高频细节越弱、海岸线越平滑。</summary>
         public double NoiseGain = 0.45;
 
+        // ---------------------------------------------------------------- 配色
+        // 放在 Core 里而不是 View 里，是为了让"颜色"成为可存档的数据而不是硬编码常量：
+        // 存档回放时能还原玩家当时看到的配色，Phase 7 换美术时也只改一处。
+        // 用 uint 的 0xRRGGBB 表示，避免 Core 层依赖 UnityEngine.Color。
+
+        /// <summary>海水颜色，0xRRGGBB。</summary>
+        public uint WaterColor = 0x2E5C8A;
+
+        /// <summary>空陆地颜色。</summary>
+        public uint LandColor = 0x6B8E4E;
+
+        /// <summary>草地颜色。</summary>
+        public uint GrassColor = 0x8FBF4A;
+
+        // ---------------------------------------------------------------- 显示
+        /// <summary>
+        /// 每单位像素数（像素风基准）。1 个格子 = 1 世界单位，所以它同时是"一格占几个屏幕像素"。
+        /// 所有美术资源都按这个值切图，因此它是全项目最不该随意改的参数之一。
+        /// </summary>
+        public int PixelsPerUnit = 16;
+
         /// <summary>复制一份，避免调用方后续修改影响到已经传给生成器的数据。</summary>
         public IslandConfigData Clone()
         {
@@ -75,6 +96,10 @@ namespace Omen.Core
                 NoiseOctaves = NoiseOctaves,
                 NoiseLacunarity = NoiseLacunarity,
                 NoiseGain = NoiseGain,
+                WaterColor = WaterColor,
+                LandColor = LandColor,
+                GrassColor = GrassColor,
+                PixelsPerUnit = PixelsPerUnit,
             };
         }
 

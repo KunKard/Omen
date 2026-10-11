@@ -3,6 +3,7 @@ using System.Text;
 using UnityEngine;
 using Omen.Core;
 using Omen.Config;
+using Omen.View;
 
 namespace Omen.Bootstrap
 {
@@ -10,8 +11,8 @@ namespace Omen.Bootstrap
     /// 场景唯一入口。职责只有一个：<b>装配</b>。
     /// 它自己不含任何玩法逻辑，只负责按顺序把数据、系统、视图拼起来。
     ///
-    /// Phase 1.1 现状：只生成岛屿数据并把 ASCII 图打到 Console，还没有任何画面。
-    /// Phase 1.2 会在这里追加 GridView / CameraRig 的装配；Phase 1.3 追加 GameClock / DebugHud。
+    /// Phase 1.2 现状：生成岛屿数据 → 建 Tile 视图 → 让相机自动构图。
+    /// Phase 1.3 会追加 GameClock / DebugHud 的装配。
     /// </summary>
     [DisallowMultipleComponent]
     public sealed class GameBootstrap : MonoBehaviour
@@ -20,8 +21,18 @@ namespace Omen.Bootstrap
         [Tooltip("岛屿生成配置。留空则使用代码内置的默认值（16x16 / 陆地 45% / 随机种子）。")]
         [SerializeField] private IslandConfig islandConfig;
 
+        [Header("视图")]
+        [Tooltip("网格视图。留空则自动在场景里创建（不会写回场景，只在运行时存在）。")]
+        [SerializeField] private GridView gridView;
+
+        [Tooltip("负责构图的相机。留空则自动使用 Camera.main。")]
+        [SerializeField] private Camera targetCamera;
+
+        [Tooltip("是否让相机自动构图。关掉的话相机参数完全由你手动控制。")]
+        [SerializeField] private bool autoFrameCamera = true;
+
         [Header("调试")]
-        [Tooltip("启动时把 ASCII 岛屿图打到 Console。Phase 1.1 的主要验收手段。")]
+        [Tooltip("启动时把 ASCII 岛屿图打到 Console。")]
         [SerializeField] private bool logAsciiMap = true;
 
         [Tooltip("每隔多少秒把 ASCII 图重打一次。0 = 只打一次。")]
@@ -30,6 +41,7 @@ namespace Omen.Bootstrap
 
         private IslandGrid _grid;
         private IslandGenerator _generator;
+        private CameraRig _cameraRig;
         private int _seed;
         private float _asciiTimer;
         private readonly StringBuilder _logBuilder = new StringBuilder(2048);
@@ -38,6 +50,12 @@ namespace Omen.Bootstrap
         public IslandGrid Grid
         {
             get { return _grid; }
+        }
+
+        /// <summary>当前网格视图。</summary>
+        public GridView View
+        {
+            get { return gridView; }
         }
 
         /// <summary>本局实际使用的随机种子（即使配置填 0 也会得到一个确定值）。</summary>
@@ -67,7 +85,7 @@ namespace Omen.Bootstrap
         // ---------------------------------------------------------------- 装配
 
         /// <summary>
-        /// 生成岛屿数据。Phase 1.3 会在这里追加视图与时钟的初始化。
+        /// 生成岛屿数据并装配视图。Phase 1.3 会在这里追加时钟。
         /// </summary>
         public void InitializeGame()
         {
@@ -79,6 +97,9 @@ namespace Omen.Bootstrap
             _grid = new IslandGrid(data.Width, data.Height);
             _generator.Generate(_grid, _seed, data);
 
+            BuildGridView();
+            SetupCamera(data);
+
             if (logAsciiMap)
             {
                 LogAsciiMap();
@@ -87,6 +108,59 @@ namespace Omen.Bootstrap
             {
                 Debug.Log(BuildSummary(data), this);
             }
+        }
+
+        /// <summary>
+        /// 装配网格视图。优先复用场景里已挂好的组件，找不到才创建 —— 这样
+        /// 你既可以直接 Play，也可以在场景里手动放一个 GridView 来微调参数。
+        /// </summary>
+        private void BuildGridView()
+        {
+            if (gridView == null)
+            {
+                gridView = GetComponentInChildren<GridView>(true);
+            }
+
+            if (gridView == null)
+            {
+                var go = new GameObject("GridView");
+                go.transform.SetParent(transform, false);
+                gridView = go.AddComponent<GridView>();
+            }
+
+            gridView.Build(_grid, islandConfig);
+        }
+
+        /// <summary>把网格尺寸告诉相机，让它自己算构图与像素对齐。</summary>
+        private void SetupCamera(IslandConfigData data)
+        {
+            if (!autoFrameCamera)
+            {
+                return;
+            }
+
+            Camera cam = targetCamera != null ? targetCamera : Camera.main;
+            if (cam == null)
+            {
+                Debug.LogWarning("[GameBootstrap] 场景里找不到相机，已跳过自动构图。", this);
+                return;
+            }
+
+            _cameraRig = cam.GetComponent<CameraRig>();
+            bool added = false;
+            if (_cameraRig == null)
+            {
+                _cameraRig = cam.gameObject.AddComponent<CameraRig>();
+                added = true;
+            }
+
+            // 运行时临时加的组件不会写回场景，这里明确标注，避免你以后在 Inspector 里找不到它而困惑。
+            if (added)
+            {
+                _cameraRig.hideFlags = HideFlags.DontSave;
+            }
+
+            _cameraRig.Configure(_grid, data.PixelsPerUnit);
         }
 
         private int ResolveSeed()
@@ -134,11 +208,33 @@ namespace Omen.Bootstrap
 
         // ---------------------------------------------------------------- 上下文菜单（便于在编辑器里快速自测）
 
-        /// <summary>在 Inspector 的组件右上角菜单里点 "Regenerate Island" 即可换一张图。</summary>
-        [ContextMenu("Regenerate Island")]
+        /// <summary>换一张岛。运行中点击可立刻重新生成（依赖 GridView 检测到版本号变小后全量刷新）。</summary>
+        [ContextMenu("Regenerate Island (Replace)")]
         private void RegenerateIsland()
         {
             InitializeGame();
+        }
+
+        /// <summary>用同一个种子重建，用于验证生成是确定性的。</summary>
+        [ContextMenu("Regenerate Island (Same Seed)")]
+        private void RegenerateSameSeed()
+        {
+            if (_grid == null || _generator == null)
+            {
+                InitializeGame();
+                return;
+            }
+
+            IslandConfigData data = islandConfig != null ? islandConfig.ToData() : new IslandConfigData();
+            data.Sanitize();
+
+            _generator.Generate(_grid, _seed, data);
+            if (gridView != null)
+            {
+                gridView.Synchronize();
+            }
+
+            Debug.Log("已用同一种子 " + _seed + " 重建岛屿，画面应与之前完全一致。", this);
         }
     }
 }

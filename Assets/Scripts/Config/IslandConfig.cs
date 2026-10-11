@@ -60,6 +60,21 @@ namespace Omen.Config
         [Range(0.05f, 0.95f)]
         [SerializeField] private float noiseGain = 0.45f;
 
+        [Header("配色")]
+        [Tooltip("海水颜色。")]
+        [SerializeField] private Color waterColor = new Color(0.18f, 0.36f, 0.54f);
+
+        [Tooltip("空陆地颜色。")]
+        [SerializeField] private Color landColor = new Color(0.42f, 0.56f, 0.31f);
+
+        [Tooltip("草地颜色。")]
+        [SerializeField] private Color grassColor = new Color(0.56f, 0.75f, 0.29f);
+
+        [Header("显示")]
+        [Tooltip("每单位像素数。1 格 = 1 世界单位，所以它也是\"一格占几个屏幕像素\"。像素风基准值，全项目美术资源都按它切图。")]
+        [Range(1, 128)]
+        [SerializeField] private int pixelsPerUnit = 16;
+
         public int Width { get { return width; } }
 
         public int Height { get { return height; } }
@@ -83,10 +98,23 @@ namespace Omen.Config
                 NoiseOctaves = noiseOctaves,
                 NoiseLacunarity = noiseLacunarity,
                 NoiseGain = noiseGain,
+                WaterColor = ToRgb24(waterColor),
+                LandColor = ToRgb24(landColor),
+                GrassColor = ToRgb24(grassColor),
+                PixelsPerUnit = pixelsPerUnit,
             };
 
             data.Sanitize();
             return data;
+        }
+
+        /// <summary>把 Unity 的 Color 转成 0xRRGGBB，供不依赖 UnityEngine 的 Core 层使用。</summary>
+        private static uint ToRgb24(Color color)
+        {
+            uint r = (uint)Mathf.Clamp(Mathf.RoundToInt(color.r * 255f), 0, 255);
+            uint g = (uint)Mathf.Clamp(Mathf.RoundToInt(color.g * 255f), 0, 255);
+            uint b = (uint)Mathf.Clamp(Mathf.RoundToInt(color.b * 255f), 0, 255);
+            return (r << 16) | (g << 8) | b;
         }
 
         private void OnValidate()
