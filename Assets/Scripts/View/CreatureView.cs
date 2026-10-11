@@ -70,6 +70,7 @@ namespace Omen.View
         private bool[] _hasLastEnergy;
 
         private float _tickSeconds = 1f;
+        private float _moveSeconds = 1.6f;
         private float _flashSeconds = 0.35f;
         private float _flashBrightness = 1.7f;
         private int _syncedVersion = -1;
@@ -91,16 +92,13 @@ namespace Omen.View
         /// </summary>
         /// <param name="simulation">生态系统模拟。</param>
         /// <param name="config">配色与动画参数来源。</param>
-        /// <param name="secondsPerTick">一个 tick 对应多少真实秒，用于平滑移动的插值时长。</param>
+        /// <param name="secondsPerTick">一个 tick 对应多少真实秒。移动动画时长由它乘以 MoveAnimationScale 得出。</param>
         public void Bind(EcosystemSimulation simulation, Config.IslandConfig config, float secondsPerTick)
         {
             _simulation = simulation;
             _tickSeconds = Mathf.Max(0.01f, secondsPerTick);
 
-            IslandConfigData data = config != null ? config.ToData() : new IslandConfigData();
-            _palette = CellPalette.FromConfig(data);
-            _flashSeconds = Mathf.Max(0f, data.EatFlashSeconds);
-            _flashBrightness = Mathf.Max(1f, data.EatFlashBrightness);
+            ApplyConfig(config);
 
             _syncedVersion = -1;   // 强制下一次同步做全量刷新
             EnsureCapacity(true);
@@ -211,15 +209,29 @@ namespace Omen.View
         /// <summary>换配色后立即刷新全部外观。</summary>
         public void ApplyPalette(Config.IslandConfig config)
         {
-            IslandConfigData data = config != null ? config.ToData() : new IslandConfigData();
-            _palette = CellPalette.FromConfig(data);
-            _flashSeconds = Mathf.Max(0f, data.EatFlashSeconds);
-            _flashBrightness = Mathf.Max(1f, data.EatFlashBrightness);
+            ApplyConfig(config);
 
             _viewGenerations = null;
             _syncedVersion = -1;
             EnsureCapacity(true);
             Synchronize();
+        }
+
+        /// <summary>
+        /// 从配置资产刷新全部表现参数。
+        /// 抽成一处是因为 Bind 与 ApplyPalette 都要用；曾经只在 Bind 里算过一次移动时长，
+        /// 结果是"改了动画系数却不生效"这种难查的不同步问题。
+        /// </summary>
+        private void ApplyConfig(Config.IslandConfig config)
+        {
+            IslandConfigData data = config != null ? config.ToData() : new IslandConfigData();
+            _palette = CellPalette.FromConfig(data);
+            _flashSeconds = Mathf.Max(0f, data.EatFlashSeconds);
+            _flashBrightness = Mathf.Max(1f, data.EatFlashBrightness);
+
+            // 移动动画时长 = 一个 tick × 系数。系数 > 1 时相邻两次移动的动画会重叠，
+            // 于是"停一下走一格"变成连续滑行（详见 IslandConfigData.MoveAnimationScale）。
+            _moveSeconds = _tickSeconds * Mathf.Max(1f, data.MoveAnimationScale);
         }
 
         private void Update()
@@ -254,7 +266,7 @@ namespace Omen.View
                 // 平滑移动
                 if (_moveProgress[slot] < 1f)
                 {
-                    _moveProgress[slot] = Mathf.Clamp01(_moveProgress[slot] + deltaSeconds / _tickSeconds);
+                    _moveProgress[slot] = Mathf.Clamp01(_moveProgress[slot] + deltaSeconds / _moveSeconds);
 
                     Creature creature = pool.GetSlot(slot);
                     Vector3 target = WorldGrid.CellCenter(creature.Position);

@@ -94,6 +94,19 @@ namespace Omen.Core
         public float EatFlashBrightness = 1.7f;
 
         /// <summary>
+        /// 生物移动动画的时长 = 一个 tick 的秒数 × 这个系数。
+        ///
+        /// 为什么默认大于 1：模拟是"每 tick 瞬移一格"，而 tick = 1 秒。
+        /// 若动画正好占满 1 秒，两次移动之间没有重叠，看起来就是"停 1 秒、走一格"。
+        /// 让动画略长于一个 tick，上一次的滑动还没结束下一次就开始了，
+        /// 画面就变成连续滑行 —— 即使某 tick 被挡住（实测约 12%），观感也不会断。
+        ///
+        /// 代价：生物位置在画面上会比模拟滞后最多 (系数-1) 个 tick。
+        /// 对"观察生态"这个玩法完全可接受；若以后要精确点击生物，把它的 sortOrder 提上去即可。
+        /// </summary>
+        public float MoveAnimationScale = 1.6f;
+
+        /// <summary>
         /// 相机放大倍数（<b>整数</b>）。屏幕上 1 格 = PixelsPerUnit × CameraZoom 个像素。
         /// 必须整数：非整数倍时相邻像素会占 1 个或 2 个屏幕像素，出现间隔条纹。
         /// 与 PixelsPerUnit 分开是有意的 —— 改画面缩放不应该污染美术采图标准。
@@ -126,6 +139,7 @@ namespace Omen.Core
                 GrassGrowSeconds = GrassGrowSeconds,
                 EatFlashSeconds = EatFlashSeconds,
                 EatFlashBrightness = EatFlashBrightness,
+                MoveAnimationScale = MoveAnimationScale,
             };
         }
 

@@ -100,6 +100,13 @@ namespace Omen.Config
         [Range(1f, 4f)]
         [SerializeField] private float eatFlashBrightness = 1.7f;
 
+        [Tooltip("移动动画时长 = 一个 tick 的秒数 × 本系数。\n" +
+                 "1.0 = 动画正好占满一个 tick（两次移动之间没有重叠，看起来是停一下走一格）\n" +
+                 "1.6 = 推荐，动画互相重叠，观感是连续滑行\n" +
+                 "越大越顺滑，但生物在画面上会比模拟滞后越多")]
+        [Range(1f, 3f)]
+        [SerializeField] private float moveAnimationScale = 1.6f;
+
         public int Width { get { return width; } }
 
         public int Height { get { return height; } }
@@ -133,6 +140,7 @@ namespace Omen.Config
                 GrassGrowSeconds = grassGrowSeconds,
                 EatFlashSeconds = eatFlashSeconds,
                 EatFlashBrightness = eatFlashBrightness,
+                MoveAnimationScale = moveAnimationScale,
             };
 
             data.Sanitize();
