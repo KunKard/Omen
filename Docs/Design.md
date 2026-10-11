@@ -248,11 +248,52 @@ Assets/
 
 ### 12.4 执行顺序
 
-| 步骤 | 内容 | 验收方式 |
+| 步骤 | 内容 | 验收方式 | 状态 |
+|---|---|---|---|
+| 1.1 | `GridPos / TileType / CellState / GridUtility / IslandGrid / ValueNoise / IslandGenerator / IslandConfigData / IslandConfig / GameBootstrap` | `GameBootstrap` 打印 ASCII 地图（`~`=水，`.`=陆），Console 肉眼确认形状 | ✅ 代码完成 |
+| 1.2 | `WorldGrid / TileView / GridView / CameraRig` | Play 看到彩色岛，相机居中留边 | ⬜ |
+| 1.3 | `GameClock / DebugHud` + `R`/`N` 热键 | Day 每 12 秒 +1，Tick 每秒 +1，热键重建岛 | ⬜ |
+
+### 12.6 Phase 1.1 在 Unity 里的验收步骤
+
+1. 用 **Unity 2022.3.x** 打开本项目（首次打开会重新导入 Library，需要几分钟）
+2. 打开场景 `Assets/Scenes/SampleScene.unity`
+3. 菜单 **GameObject → Create Empty**，命名为 `GameBootstrap`
+4. 在 Inspector 里 **Add Component** → 搜 `GameBootstrap` → 添加
+5. （可选，推荐）在 Project 窗口右键 **Create → Omen → Island Config**，
+   放到 `Assets/Config/IslandConfig.asset`（`Config` 文件夹需新建），
+   然后把这个资产拖到 `GameBootstrap` 的 `Island Config` 字段上
+6. （可选）选中 `Main Camera`，把 **Orthographic Size** 从 5 改成 **9**，
+   这样 16×16 的岛（宽 16 单位）才装得下 —— 否则 Phase 1.2 会看到被裁切的岛
+7. 保存场景（Ctrl+S），按 **Play**
+8. Console 应输出 ASCII 岛屿地图 + 统计行
+
+**验收要点**
+
+- [ ] Console 里岛的外圈全是 `~`，内部是 `.`，形状不规则（不是正圆）
+- [ ] 统计行里"陆地格数"在 **108 ~ 118** 之间（目标占比 45%）
+- [ ] "孤岛裁掉" 一般为 0；偶尔大于 0 也正常（那是噪声产生的零碎小岛被清理）
+- [ ] 同一种子再次 Play，ASCII 图**逐字符一致**
+- [ ] 改 `Island Config` 的 `Seed` 为非 0 值，图应固定不变；改为 0 则每次不同
+- [ ] Console **零报错零警告**
+
+**已知的中间状态**：此刻按 Play 场景里**还看不到任何画面**（Phase 1.1 只做数据层）。
+如果 Unity 在 Play 时因为场景里只有相机而提示"没有物体"，属正常。
+
+### 12.7 岛屿生成参数的调参手感（Phase 1.1 实测结论）
+
+| 参数 | 效果 | 推荐区间 |
 |---|---|---|
-| 1.1 | `GridPos / TileType / CellState / IslandGrid / ValueNoise / IslandGenerator / IslandConfig` | `GameBootstrap` 打印 ASCII 地图（`~`=水，`.`=陆），Console 肉眼确认形状 |
-| 1.2 | `WorldGrid / TileView / GridView / CameraRig` | Play 看到彩色岛，相机居中留边 |
-| 1.3 | `GameClock / DebugHud` + `R`/`N` 热键 | Day 每 12 秒 +1，Tick 每秒 +1，热键重建岛 |
+| `ShapeLobes` | 半岛/海湾数量 | 4（经典小岛）；3 = 三叶形；8 = 高度破碎 |
+| `ShapeRadiusJitter` | 半岛长度落差 | 0.5~0.6（0.55 时最长/最短方向差半个岛半径） |
+| `ShapeInfluence` | 海岸线起伏幅度 | 0.35~0.45；上限 0.5（超过会把陆地撕成两块） |
+| `CoastNoiseInfluence` | 海岸线小尺度锯齿 | 0.15~0.25；0 = 轮廓平滑如几何图形 |
+| `LandRatio` | 陆地占比 | 0.40~0.55，实测二分搜索误差 < 1% |
+
+**踩过的坑（写下来避免以后重犯）**：最初把形状写成加法项 `d - shape * influence`，
+结果噪声与形状的梯度都被径向距离场的梯度（约 1.0）淹没，500 个种子生成的都是**正圆**。
+改成乘性遮罩 `d / mask` 后，轮廓偏移量随岛半径等比缩放，半岛与海湾才真正显现。
+**结论：在距离场上做形状扰动，必须用乘法而不是加法。**
 
 ### 12.5 参数默认值（Inspector 可调，无需改代码）
 
