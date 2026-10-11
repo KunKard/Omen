@@ -371,11 +371,17 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   islandConfig: {fileID: 11400000, guid: cc423f8a0297bcf4692aaaa2a07f2579, type: 2}
+  clockConfig: {fileID: 11400000, guid: 772cf97dc1cdde948b7b2e01712af628, type: 2}
   gridView: {fileID: 0}
+  creatureView: {fileID: 0}
   targetCamera: {fileID: 0}
   autoFrameCamera: 1
+  gameClock: {fileID: 0}
+  ecosystemConfig: {fileID: 11400000, guid: d13c646a3d7a4b84183a9139ba8e6f13, type: 2}
+  debugHud: {fileID: 0}
   logAsciiMap: 1
   asciiLogInterval: 0
+  enableHotkeys: 1
 --- !u!4 &1452746250
 Transform:
   m_ObjectHideFlags: 0

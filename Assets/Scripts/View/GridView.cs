@@ -35,6 +35,7 @@ namespace Omen.View
 
         private TileView[] _tiles;
         private CellPalette _palette;
+        private float _grassGrowSeconds = 0.45f;
         private int _lastVersion = -1;
         private IslandGrid _builtFor;
 
@@ -71,6 +72,7 @@ namespace Omen.View
             grid = targetGrid;
             islandConfig = config;
             _palette = CellPalette.FromConfig(config != null ? config.ToData() : null);
+            _grassGrowSeconds = config != null ? config.ToData().GrassGrowSeconds : 0.45f;
 
             if (_tiles == null || _tiles.Length != grid.CellCount || _builtFor != grid)
             {
@@ -123,7 +125,39 @@ namespace Omen.View
         {
             islandConfig = config;
             _palette = CellPalette.FromConfig(config != null ? config.ToData() : null);
+            _grassGrowSeconds = config != null ? config.ToData().GrassGrowSeconds : 0.45f;
 
+            if (_tiles == null)
+            {
+                return;
+            }
+
+            // 换配色时直接落定，不做过渡 —— 否则整张图会同时闪一下。
+            for (int i = 0; i < _tiles.Length; i++)
+            {
+                if (_tiles[i] == null)
+                {
+                    continue;
+                }
+
+                int x = i % grid.Width;
+                int y = i / grid.Width;
+                _tiles[i].SetColorImmediate(TileView.ResolveColor(grid.Get(x, y), _palette));
+            }
+        }
+
+        private void Update()
+        {
+            AdvanceAnimations(Time.deltaTime);
+            Synchronize();
+        }
+
+        /// <summary>
+        /// 推进颜色过渡动画。用真实时间去驱动，与模拟的 tick 节奏解耦 ——
+        /// 所以调快调慢一局的时长，草的成长动画快慢不变。
+        /// </summary>
+        private void AdvanceAnimations(float deltaSeconds)
+        {
             if (_tiles == null)
             {
                 return;
@@ -131,13 +165,12 @@ namespace Omen.View
 
             for (int i = 0; i < _tiles.Length; i++)
             {
-                RefreshTile(i);
+                TileView tile = _tiles[i];
+                if (tile != null && tile.IsAnimating)
+                {
+                    tile.Advance(deltaSeconds);
+                }
             }
-        }
-
-        private void Update()
-        {
-            Synchronize();
         }
 
         private void OnValidate()
@@ -240,7 +273,7 @@ namespace Omen.View
                     renderer.sortingOrder = sortingOrder;
 
                     var tile = go.AddComponent<TileView>();
-                    tile.Initialize(pos, renderer, TileView.ResolveColor(grid.Get(x, y), _palette));
+                    tile.Initialize(pos, renderer, TileView.ResolveColor(grid.Get(x, y), _palette), _grassGrowSeconds);
 
                     _tiles[index] = tile;
                 }

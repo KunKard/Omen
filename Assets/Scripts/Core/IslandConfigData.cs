@@ -80,11 +80,18 @@ namespace Omen.Core
         public uint WolfColor = 0x8C2F39;
 
         // ---------------------------------------------------------------- 显示
-        /// <summary>
-        /// 美术采图标准：一格按多少像素绘制。1 个格子 = 1 世界单位，所以它也是"美术上一格画多大"。
-        /// 所有美术资源都按这个值切图，因此它是全项目最不该随意改的参数之一。
-        /// </summary>
+        /// <summary>每单位像素数（像素风基准）。</summary>
         public int PixelsPerUnit = 16;
+
+        // ---------------------------------------------------------------- 动画时长（纯表现，不影响模拟）
+        /// <summary>草从裸地长出来时的颜色渐变时长（真实秒）。</summary>
+        public float GrassGrowSeconds = 0.45f;
+
+        /// <summary>动物进食时的高亮闪烁时长（真实秒）。</summary>
+        public float EatFlashSeconds = 0.35f;
+
+        /// <summary>进食高亮的亮度倍数。1 = 不亮，1.6 = 明显发亮。</summary>
+        public float EatFlashBrightness = 1.7f;
 
         /// <summary>
         /// 相机放大倍数（<b>整数</b>）。屏幕上 1 格 = PixelsPerUnit × CameraZoom 个像素。
@@ -116,6 +123,9 @@ namespace Omen.Core
                 WolfColor = WolfColor,
                 PixelsPerUnit = PixelsPerUnit,
                 CameraZoom = CameraZoom,
+                GrassGrowSeconds = GrassGrowSeconds,
+                EatFlashSeconds = EatFlashSeconds,
+                EatFlashBrightness = EatFlashBrightness,
             };
         }
 

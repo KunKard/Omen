@@ -63,6 +63,22 @@ namespace Omen.View
             }
         }
 
+        /// <summary>把颜色整体提亮（用于"进食闪烁"这类瞬时高亮）。factor 1 = 不变，2 = 两倍亮。</summary>
+        public static Color Brighten(Color color, float factor)
+        {
+            return new Color(color.r * factor, color.g * factor, color.b * factor, color.a);
+        }
+
+        /// <summary>把颜色向某个目标混合。amount 0 = 原色，1 = 目标色。</summary>
+        public static Color Blend(Color from, Color to, float amount)
+        {
+            return new Color(
+                from.r + (to.r - from.r) * amount,
+                from.g + (to.g - from.g) * amount,
+                from.b + (to.b - from.b) * amount,
+                from.a + (to.a - from.a) * amount);
+        }
+
         /// <summary>把 0xRRGGBB 还原成 Color。</summary>
         public static Color ToColor(uint rgb24)
         {

@@ -253,7 +253,10 @@ namespace Omen.Bootstrap
                 creatureView = go.AddComponent<CreatureView>();
             }
 
-            creatureView.Bind(_simulation, islandConfig);
+            // 把"一个 tick 有多长"告诉视图，它才能把瞬移插值成平滑移动。
+            // 视图因此不需要知道时钟的存在 —— 换时间尺度时视图一行都不用改。
+            float secondsPerTick = gameClock != null ? (float)gameClock.SecondsPerTick : 1f;
+            creatureView.Bind(_simulation, islandConfig, secondsPerTick);
         }
 
         private void SetupClock()

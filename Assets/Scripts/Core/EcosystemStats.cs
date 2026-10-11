@@ -43,11 +43,28 @@ namespace Omen.Core
         /// <summary>本 tick 内被吃掉的草格数。</summary>
         public int GrassEaten;
 
+        // ---------------------------------------------------------------- 移动诊断
+        // 这四项用于回答"为什么有的生物长时间不动"。
+        // 它们是纯统计量，不参与任何规则判断，因此可以随时关掉而不影响模拟。
+
+        /// <summary>本 tick 内成功移动的动物次数。</summary>
+        public int MovesSucceeded;
+
+        /// <summary>本 tick 内想动但四个方向全被挡住（水/别的生物）而失败的次数。</summary>
+        public int MovesBlocked;
+
+        /// <summary>本 tick 内因为"没有值得追求的目标"而干脆没尝试移动的次数（草食动物吃饱时的随机游走也算一次尝试）。</summary>
+        public int MovesNotAttempted;
+
+        /// <summary>本 tick 内成功吃到东西的次数（兔吃草 + 狼吃兔）。</summary>
+        public int MealsEaten;
+
         public override string ToString()
         {
             return "tick " + Tick
                 + " 兔 " + RabbitCount + " 狼 " + WolfCount
-                + " 草 " + GrassCells + "/" + LandCells + " (" + (GrassCoverage * 100f).ToString("F1") + "%)";
+                + " 草 " + GrassCells + "/" + LandCells + " (" + (GrassCoverage * 100f).ToString("F1") + "%)"
+                + " 移动 " + MovesSucceeded + "/阻挡 " + MovesBlocked;
         }
     }
 

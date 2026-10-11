@@ -87,6 +87,19 @@ namespace Omen.Config
         [Range(1, 8)]
         [SerializeField] private int cameraZoom = 2;
 
+        [Header("动画（纯表现，不影响模拟结果）")]
+        [Tooltip("草从裸地长出来时的颜色渐变时长（秒）。0 = 瞬间变绿。")]
+        [Range(0f, 2f)]
+        [SerializeField] private float grassGrowSeconds = 0.45f;
+
+        [Tooltip("动物进食时的高亮闪烁时长（秒）。0 = 不闪。")]
+        [Range(0f, 2f)]
+        [SerializeField] private float eatFlashSeconds = 0.35f;
+
+        [Tooltip("进食高亮的亮度倍数。1 = 不变，1.7 = 明显发亮。")]
+        [Range(1f, 4f)]
+        [SerializeField] private float eatFlashBrightness = 1.7f;
+
         public int Width { get { return width; } }
 
         public int Height { get { return height; } }
@@ -117,6 +130,9 @@ namespace Omen.Config
                 WolfColor = ToRgb24(wolfColor),
                 PixelsPerUnit = pixelsPerUnit,
                 CameraZoom = cameraZoom,
+                GrassGrowSeconds = grassGrowSeconds,
+                EatFlashSeconds = eatFlashSeconds,
+                EatFlashBrightness = eatFlashBrightness,
             };
 
             data.Sanitize();

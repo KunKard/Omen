@@ -1,0 +1,36 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 90a538a972bc47408bfeb38b75ae9f5c, type: 3}
+  m_Name: EcosystemConfig
+  m_EditorClassIdentifier: 
+  rabbitInitialCount: 12
+  rabbitEnergyDrain: 0.7
+  rabbitEnergyPerFood: 5
+  rabbitMaxEnergy: 14
+  rabbitReproThreshold: 10
+  rabbitReproCost: 6
+  rabbitReproCooldown: 14
+  rabbitPopulationCap: 60
+  rabbitVisionRadius: 5
+  wolfInitialCount: 2
+  wolfEnergyDrain: 0.8
+  wolfEnergyPerFood: 25
+  wolfReproThreshold: 26
+  wolfReproCost: 16
+  wolfReproCooldown: 50
+  wolfPopulationCap: 8
+  wolfVisionRadius: 4
+  grassInitialCount: 20
+  grassSpreadAttempts: 1
+  grassSpreadChance: 0.75
+  grassMaxNeighbors: 2
+  grassRequireNeighbor: 1
