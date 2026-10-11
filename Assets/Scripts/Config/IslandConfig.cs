@@ -1,0 +1,98 @@
+using UnityEngine;
+using Omen.Core;
+
+namespace Omen.Config
+{
+    /// <summary>
+    /// 岛屿配置资产 —— 在 Inspector 里可视化调参，运行时转成纯 C# 的 <see cref="IslandConfigData"/> 交给 Core 层。
+    ///
+    /// 创建方式：Project 窗口右键 → Create → Omen → Island Config
+    /// 建议路径：Assets/Config/IslandConfig.asset
+    /// </summary>
+    [CreateAssetMenu(fileName = "IslandConfig", menuName = "Omen/Island Config", order = 0)]
+    public sealed class IslandConfig : ScriptableObject
+    {
+        [Header("网格")]
+        [Tooltip("网格宽度（格）。改动后需要重新生成岛屿。")]
+        [SerializeField] private int width = 16;
+
+        [Tooltip("网格高度（格）。")]
+        [SerializeField] private int height = 16;
+
+        [Tooltip("随机种子。0 表示每次运行随机取一个（实际使用的种子会打到 Console 上，方便复现）。")]
+        [SerializeField] private int seed = 0;
+
+        [Header("大陆形状（决定半岛与海湾）")]
+        [Tooltip("目标陆地占比。算法会二分搜索阈值逼近它；实际值会略低，因为孤岛会被裁掉。")]
+        [Range(0.05f, 0.90f)]
+        [SerializeField] private float landRatio = 0.45f;
+
+        [Tooltip("半岛/海湾的数量。3 = 三叶形，4 = 经典小岛，8 = 高度破碎。")]
+        [Range(2, 12)]
+        [SerializeField] private int shapeLobes = 4;
+
+        [Tooltip("各方向半径的随机落差。越大，伸出的半岛越长、海湾越深。")]
+        [Range(0.0f, 0.85f)]
+        [SerializeField] private float shapeRadiusJitter = 0.55f;
+
+        [Tooltip("大陆形状的影响力。0 = 正圆；0.4 = 明显的半岛与海湾。上限 0.6 是保证陆地连通的安全值。")]
+        [Range(0.0f, 0.6f)]
+        [SerializeField] private float shapeInfluence = 0.40f;
+
+        [Header("海岸线细节")]
+        [Tooltip("海岸线噪声的影响力。给轮廓叠加小尺度锯齿，避免看起来像几何图形。")]
+        [Range(0.0f, 0.4f)]
+        [SerializeField] private float coastNoiseInfluence = 0.18f;
+
+        [Tooltip("噪声频率倍率。0.25 对应约 4 格一个起伏；越小地形特征越大块。")]
+        [Range(0.02f, 1.0f)]
+        [SerializeField] private float coastNoiseScale = 0.25f;
+
+        [Tooltip("噪声倍频程数。1 = 只有大起伏，3 = 带细节的海岸线。")]
+        [Range(1, 6)]
+        [SerializeField] private int noiseOctaves = 3;
+
+        [Tooltip("每层倍频程的频率放大倍数。")]
+        [Range(1.1f, 4.0f)]
+        [SerializeField] private float noiseLacunarity = 2.0f;
+
+        [Tooltip("每层倍频程的振幅衰减。越小则高频细节越弱、海岸线越平滑。")]
+        [Range(0.05f, 0.95f)]
+        [SerializeField] private float noiseGain = 0.45f;
+
+        public int Width { get { return width; } }
+
+        public int Height { get { return height; } }
+
+        /// <summary>配置的种子。0 表示"运行时随机"。</summary>
+        public int Seed { get { return seed; } }
+
+        /// <summary>转成 Core 层可用的纯 C# 数据。</summary>
+        public IslandConfigData ToData()
+        {
+            var data = new IslandConfigData
+            {
+                Width = width,
+                Height = height,
+                LandRatio = landRatio,
+                ShapeLobes = shapeLobes,
+                ShapeRadiusJitter = shapeRadiusJitter,
+                ShapeInfluence = shapeInfluence,
+                CoastNoiseInfluence = coastNoiseInfluence,
+                CoastNoiseScale = coastNoiseScale,
+                NoiseOctaves = noiseOctaves,
+                NoiseLacunarity = noiseLacunarity,
+                NoiseGain = noiseGain,
+            };
+
+            data.Sanitize();
+            return data;
+        }
+
+        private void OnValidate()
+        {
+            width = Mathf.Max(8, width);
+            height = Mathf.Max(8, height);
+        }
+    }
+}

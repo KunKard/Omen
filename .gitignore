@@ -1,0 +1,63 @@
+# ---------------------------------------------------------------
+# Unity 生成物（绝对不要提交）
+# ---------------------------------------------------------------
+[Ll]ibrary/
+[Tt]emp/
+[Oo]bj/
+[Bb]uild/
+[Bb]uilds/
+[Ll]ogs/
+[Uu]ser[Ss]ettings/
+[Mm]emoryCaptures/
+[Rr]ecordings/
+
+# Asset Store 下载缓存（体积巨大，且可重新下载）
+[Aa]ssets/AssetStoreTools*
+[Aa]ssets/Plugins/Editor/JetBrains*
+
+# Unity 自动生成的工程文件
+*.csproj
+*.unityproj
+*.sln
+*.suo
+*.user
+*.userprefs
+*.pidb
+*.booproj
+*.svd
+*.pdb
+*.mdb
+*.opendb
+*.VC.db
+
+# Unity 崩溃报告
+sysinfo.txt
+
+# ---------------------------------------------------------------
+# 构建产物
+# ---------------------------------------------------------------
+*.apk
+*.aab
+*.unitypackage
+*.app
+ExportedObj/
+crashlytics-build.properties
+
+# ---------------------------------------------------------------
+# IDE / 系统
+# ---------------------------------------------------------------
+.vs/
+.vscode/
+.idea/
+*.swp
+*~
+.DS_Store
+Thumbs.db
+
+# ---------------------------------------------------------------
+# 例外：这些 Unity 资产必须提交
+# ! 开头表示"即使被上面的规则匹配也要保留"
+# ---------------------------------------------------------------
+!Assets/**
+!ProjectSettings/**
+!Packages/**
