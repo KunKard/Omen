@@ -9,13 +9,18 @@
 #
 # NOTE: keep every string ASCII-only. Windows PowerShell 5.1 reads .ps1 files using the ANSI
 # code page, so non-ASCII here would be mangled and can break parsing.
+#
+# This folder is named "Tools~" on purpose: Unity ignores directories whose name ends with "~",
+# so nothing placed here can ever be picked up by the asset pipeline or the script compiler.
 
 $ErrorActionPreference = 'Stop'
 
 $unityData = "D:\Program Files\2022.3.62f2c1\Editor\Data"
-$root      = Split-Path -Parent $PSScriptRoot
 $work      = "C:\Users\Kard\AppData\Local\Temp\omen-compile"
 $csc       = "C:\Program Files\dotnet\sdk\8.0.303\Roslyn\bincore\csc.dll"
+
+# The project root is the parent of the folder this script lives in.
+$root = Split-Path -Parent $PSScriptRoot
 
 $apiDir = Join-Path $unityData "MonoBleedingEdge\lib\mono\4.7.1-api"
 if (-not (Test-Path $apiDir)) { throw "Framework reference dir not found: $apiDir" }

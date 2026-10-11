@@ -268,8 +268,51 @@ Assets/
 | 步骤 | 内容 | 验收方式 | 状态 |
 |---|---|---|---|
 | 1.1 | `GridPos / TileType / CellState / GridUtility / IslandGrid / ValueNoise / IslandGenerator / IslandConfigData / IslandConfig / GameBootstrap` | `GameBootstrap` 打印 ASCII 地图（`~`=水，`.`=陆），Console 肉眼确认形状 | ✅ 已验收 |
-| 1.2 | `WorldGrid / RuntimeSprite / CellPalette / TileView / GridView / CameraRig` | Play 看到彩色岛，相机居中留边，画面不糊 | 🚧 待验收 |
-| 1.3 | `GameClock / DebugHud` + `R`/`N` 热键 | Day 每 12 秒 +1，Tick 每秒 +1，热键重建岛 | ⬜ |
+| 1.2 | `WorldGrid / RuntimeSprite / CellPalette / TileView / GridView / CameraRig` | Play 看到彩色岛，相机居中留边，画面不糊 | ✅ 已验收（Camera Zoom = 3） |
+| 1.3 | `GameClockData / GameClockConfig / GameClock / DebugHud` + 热键 | Day 每 12 秒 +1，Tick 每秒 +1，HUD 实时刷新，热键重建岛 | 🚧 待验收 |
+
+### 12.10 Phase 1.3 在 Unity 里的验收步骤
+
+**不需要手动操作**，`GameBootstrap` 会自动创建 `GameClock` 与 `DebugHud`。
+
+1. 切到 Unity，等编译完
+2. 按 **Play**
+3. 左上角应出现半透明黑底调试面板
+
+**验收要点**
+
+- [ ] HUD 显示 `FPS / 屏幕 / Day 1 / 15 / Tick 0 / 12 / [运行中] / 距离下一天 x.x 秒 / Day 进度`
+- [ ] `Tick` 每 1 秒 +1，到 12 后归零同时 `Day` +1
+- [ ] `Day 进度` 是百分比，随时间增长
+- [ ] HUD 显示 `相机 正交尺寸 / PPU / Zoom`，**PPU 应等于 16 × 你设置的 Camera Zoom**
+      （如果你看到 PPU 比预期小，说明屏幕不够大被自动降档了 —— 这正是要监控的指标）
+- [ ] 按 **空格** → 状态变 `[已暂停]`，时间停住；再按恢复
+- [ ] 按 **R** → 用同一种子重建岛屿，画面完全一致，且 **Day 回到 1**
+- [ ] 按 **N** → 换新种子，岛形变化，Day 回到 1
+- [ ] 按 **F1** → HUD 隐藏 / 显示
+- [ ] Console 零报错
+
+### 12.11 热键一览（`GameBootstrap.enableHotkeys`，发布时关掉）
+
+| 键 | 作用 |
+|---|---|
+| `R` | 用**同一**种子重建（验证确定性；Day 归 1） |
+| `N` | 换**新**种子重建（换一张岛；Day 归 1） |
+| `空格` | 暂停 / 继续时钟 |
+| `F1` | 显示 / 隐藏 HUD |
+
+### 12.12 时钟的边界语义（已用单测钉死）
+
+时间约定：**Day 从 1 开始；Tick 是当天内的序号，从 0 到 `TicksPerDay-1`**。
+
+| 事件 | 语义 |
+|---|---|
+| 第 1 天的 Tick | 1、2、…、12（TickInDay 依次为 0…11，注意第 1 个 tick 发生在第 1 秒末） |
+| t = 12.0 秒 | 第 12 个 tick 发生的**同时**跨天 → `Day=2`、`TickInDay=0`、进度归零 |
+| 最后一个 tick | Day 15 的第 12 个 tick 仍会触发，之后才 `Finished`（不会吞掉最后一个 tick） |
+| 一局总量 | 15 天 × 12 tick = **180 个 tick**，180 秒 |
+| 单帧补帧上限 | 8 个 tick。编辑器暂停后恢复不会"追帧雪崩"（超出部分直接丢弃） |
+| `TimeScale` | 预兆要"全岛加速"时改这一个值即可，不会丢 tick 或重复 tick |
 
 ### 12.6 Phase 1.1 在 Unity 里的验收步骤（已完成，保留备查）
 

@@ -1,0 +1,31 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 807c709950044294aa665bd1e4306ba5, type: 3}
+  m_Name: IslandConfig
+  m_EditorClassIdentifier: 
+  width: 16
+  height: 16
+  seed: 0
+  landRatio: 0.45
+  shapeLobes: 4
+  shapeRadiusJitter: 0.55
+  shapeInfluence: 0.4
+  coastNoiseInfluence: 0.18
+  coastNoiseScale: 0.25
+  noiseOctaves: 3
+  noiseLacunarity: 2
+  noiseGain: 0.45
+  waterColor: {r: 0.18, g: 0.36, b: 0.54, a: 1}
+  landColor: {r: 0.42, g: 0.56, b: 0.31, a: 1}
+  grassColor: {r: 0.56, g: 0.75, b: 0.29, a: 1}
+  pixelsPerUnit: 16
+  cameraZoom: 3

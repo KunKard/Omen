@@ -3,6 +3,7 @@ using System.Text;
 using UnityEngine;
 using Omen.Core;
 using Omen.Config;
+using Omen.Systems;
 using Omen.View;
 
 namespace Omen.Bootstrap
@@ -11,8 +12,7 @@ namespace Omen.Bootstrap
     /// 场景唯一入口。职责只有一个：<b>装配</b>。
     /// 它自己不含任何玩法逻辑，只负责按顺序把数据、系统、视图拼起来。
     ///
-    /// Phase 1.2 现状：生成岛屿数据 → 建 Tile 视图 → 让相机自动构图。
-    /// Phase 1.3 会追加 GameClock / DebugHud 的装配。
+    /// Phase 1 现状：生成岛屿数据 → 建 Tile 视图 → 让相机自动构图 → 启动时钟 → 挂调试 HUD。
     /// </summary>
     [DisallowMultipleComponent]
     public sealed class GameBootstrap : MonoBehaviour
@@ -21,8 +21,11 @@ namespace Omen.Bootstrap
         [Tooltip("岛屿生成配置。留空则使用代码内置的默认值（16x16 / 陆地 45% / 随机种子）。")]
         [SerializeField] private IslandConfig islandConfig;
 
+        [Tooltip("时钟配置。留空则使用代码内置的默认值（15 天 / 12 秒一天 / 1 秒一 tick）。")]
+        [SerializeField] private GameClockConfig clockConfig;
+
         [Header("视图")]
-        [Tooltip("网格视图。留空则自动在场景里创建（不会写回场景，只在运行时存在）。")]
+        [Tooltip("网格视图。留空则自动在场景里创建（运行时物体，不写回场景）。")]
         [SerializeField] private GridView gridView;
 
         [Tooltip("负责构图的相机。留空则自动使用 Camera.main。")]
@@ -31,7 +34,14 @@ namespace Omen.Bootstrap
         [Tooltip("是否让相机自动构图。关掉的话相机参数完全由你手动控制。")]
         [SerializeField] private bool autoFrameCamera = true;
 
+        [Header("系统")]
+        [Tooltip("半实时时钟。留空则自动创建（运行时物体，不写回场景）。")]
+        [SerializeField] private GameClock gameClock;
+
         [Header("调试")]
+        [Tooltip("屏上调试面板。留空则自动创建（运行时物体，不写回场景）。")]
+        [SerializeField] private Debugging.DebugHud debugHud;
+
         [Tooltip("启动时把 ASCII 岛屿图打到 Console。")]
         [SerializeField] private bool logAsciiMap = true;
 
@@ -39,10 +49,16 @@ namespace Omen.Bootstrap
         [Min(0f)]
         [SerializeField] private float asciiLogInterval = 0f;
 
+        [Header("热键")]
+        [Tooltip("启用调试热键。发布时关掉。")]
+        [SerializeField] private bool enableHotkeys = true;
+
         private IslandGrid _grid;
         private IslandGenerator _generator;
         private CameraRig _cameraRig;
         private int _seed;
+        private int _seedOverride;
+        private bool _hasSeedOverride;
         private float _asciiTimer;
         private readonly StringBuilder _logBuilder = new StringBuilder(2048);
 
@@ -58,6 +74,12 @@ namespace Omen.Bootstrap
             get { return gridView; }
         }
 
+        /// <summary>半实时时钟。</summary>
+        public GameClock Clock
+        {
+            get { return gameClock; }
+        }
+
         /// <summary>本局实际使用的随机种子（即使配置填 0 也会得到一个确定值）。</summary>
         public int Seed
         {
@@ -71,6 +93,11 @@ namespace Omen.Bootstrap
 
         private void Update()
         {
+            if (enableHotkeys)
+            {
+                HandleHotkeys();
+            }
+
             if (logAsciiMap && asciiLogInterval > 0f && _grid != null)
             {
                 _asciiTimer += Time.deltaTime;
@@ -82,10 +109,43 @@ namespace Omen.Bootstrap
             }
         }
 
+        /// <summary>
+        /// 调试热键。放在这里而不是各个系统里，是为了让"有哪些调试开关"一眼可见。
+        /// 输入读取只在这一处发生。
+        /// </summary>
+        private void HandleHotkeys()
+        {
+            // 换一张岛：换新种子并从头开始
+            if (Input.GetKeyDown(KeyCode.N))
+            {
+                Debug.Log("[热键] N：换新种子重建岛屿。", this);
+                RebuildIsland(Environment.TickCount);
+            }
+
+            // 同一个种子重建：用于验证生成是确定性的
+            if (Input.GetKeyDown(KeyCode.R))
+            {
+                Debug.Log("[热键] R：用同一种子重建岛屿（画面应与之前完全一致）。", this);
+                RebuildIsland(_seed);
+            }
+
+            // 暂停 / 继续
+            if (Input.GetKeyDown(KeyCode.Space) && gameClock != null && !gameClock.IsFinished)
+            {
+                gameClock.TogglePause();
+            }
+
+            // 显示 / 隐藏 HUD
+            if (Input.GetKeyDown(KeyCode.F1) && debugHud != null)
+            {
+                debugHud.Toggle();
+            }
+        }
+
         // ---------------------------------------------------------------- 装配
 
         /// <summary>
-        /// 生成岛屿数据并装配视图。Phase 1.3 会在这里追加时钟。
+        /// 生成岛屿数据并装配全部系统与视图。
         /// </summary>
         public void InitializeGame()
         {
@@ -99,6 +159,8 @@ namespace Omen.Bootstrap
 
             BuildGridView();
             SetupCamera(data);
+            SetupClock();
+            SetupHud();
 
             if (logAsciiMap)
             {
@@ -108,6 +170,46 @@ namespace Omen.Bootstrap
             {
                 Debug.Log(BuildSummary(data), this);
             }
+        }
+
+        /// <summary>
+        /// 装配时钟。换岛重建时调 Reset() 把天数拨回第 1 天 —— 否则重建地形后
+        /// 时钟还停在第 7 天，观察到的状态和历史对不上，调试时会非常困惑。
+        /// </summary>
+        private void SetupClock()
+        {
+            if (gameClock == null)
+            {
+                gameClock = GetComponentInChildren<GameClock>(true);
+            }
+
+            if (gameClock == null)
+            {
+                var go = new GameObject("GameClock");
+                go.transform.SetParent(transform, false);
+                gameClock = go.AddComponent<GameClock>();
+                gameClock.hideFlags = HideFlags.DontSave;
+            }
+
+            gameClock.Reset();
+        }
+
+        private void SetupHud()
+        {
+            if (debugHud == null)
+            {
+                debugHud = GetComponentInChildren<Debugging.DebugHud>(true);
+            }
+
+            if (debugHud == null)
+            {
+                var go = new GameObject("DebugHud");
+                go.transform.SetParent(transform, false);
+                debugHud = go.AddComponent<Debugging.DebugHud>();
+                debugHud.hideFlags = HideFlags.DontSave;
+            }
+
+            debugHud.Bind(this, gameClock);
         }
 
         /// <summary>
@@ -167,6 +269,12 @@ namespace Omen.Bootstrap
 
         private int ResolveSeed()
         {
+            // 热键要求"换种子"或"沿用一个种子"时，优先听热键的。
+            if (_hasSeedOverride)
+            {
+                return _seedOverride;
+            }
+
             int configured = islandConfig != null ? islandConfig.Seed : 0;
             if (configured != 0)
             {
@@ -210,33 +318,29 @@ namespace Omen.Bootstrap
 
         // ---------------------------------------------------------------- 上下文菜单（便于在编辑器里快速自测）
 
-        /// <summary>换一张岛。运行中点击可立刻重新生成（依赖 GridView 检测到版本号变小后全量刷新）。</summary>
-        [ContextMenu("Regenerate Island (Replace)")]
-        private void RegenerateIsland()
+        /// <summary>换一张岛：取新种子并从头开始。</summary>
+        [ContextMenu("Regenerate Island (New Seed)")]
+        private void RegenerateWithNewSeed()
         {
-            InitializeGame();
+            RebuildIsland(Environment.TickCount);
         }
 
         /// <summary>用同一个种子重建，用于验证生成是确定性的。</summary>
         [ContextMenu("Regenerate Island (Same Seed)")]
         private void RegenerateSameSeed()
         {
-            if (_grid == null || _generator == null)
-            {
-                InitializeGame();
-                return;
-            }
+            RebuildIsland(_seed);
+        }
 
-            IslandConfigData data = islandConfig != null ? islandConfig.ToData() : new IslandConfigData();
-            data.Sanitize();
-
-            _generator.Generate(_grid, _seed, data);
-            if (gridView != null)
-            {
-                gridView.Synchronize();
-            }
-
-            Debug.Log("已用同一种子 " + _seed + " 重建岛屿，画面应与之前完全一致。", this);
+        /// <summary>
+        /// 用指定种子重建整局（岛屿 + 时钟）。
+        /// 热键与右键菜单共用这一条路径，避免两处行为不一致。
+        /// </summary>
+        private void RebuildIsland(int seed)
+        {
+            _seedOverride = seed;
+            _hasSeedOverride = true;
+            InitializeGame();
         }
     }
 }

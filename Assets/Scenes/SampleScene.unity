@@ -370,7 +370,10 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 3222c710a0f640e4be2a53ecfa14d5da, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  islandConfig: {fileID: 0}
+  islandConfig: {fileID: 11400000, guid: cc423f8a0297bcf4692aaaa2a07f2579, type: 2}
+  gridView: {fileID: 0}
+  targetCamera: {fileID: 0}
+  autoFrameCamera: 1
   logAsciiMap: 1
   asciiLogInterval: 0
 --- !u!4 &1452746250
